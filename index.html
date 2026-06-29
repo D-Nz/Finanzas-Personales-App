@@ -182,7 +182,9 @@ tr.hv:hover{background:var(--cream)}
 <div class="toast" id="toast"></div>
 
 <script>
-const SB=supabase.createClient("https://dzlxyapzbdhfdundgcpm.supabase.co","sb_publishable_TXM_Hg1PwsKFrXkoBCzfcQ_VaDkIcSs");
+const SB=supabase.createClient("https://dzlxyapzbdhfdundgcpm.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6bHh5YXB6YmRoZmR1bmRnY3BtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0Nzc1NzUsImV4cCI6MjA5ODA1MzU3NX0.3TugcXH-1amdvfnVcWHDwKftXRCDSPxV64DYL4XLgMU",{
+  auth:{persistSession:true,storageKey:'danc-finanzas-session',autoRefreshToken:true,detectSessionInUrl:false}
+});
 let U=null,P=null,V='resumen',mesV=new Date().getMonth()+1,anioV=new Date().getFullYear();
 const MES=mesV,ANIO=anioV;
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
