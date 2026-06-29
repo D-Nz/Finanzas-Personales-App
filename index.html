@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 :root{--forest:#1a3a2a;--forest2:#254d38;--forest3:#2e6347;--sage:#5a8a6f;--mint:#a8d5b5;--cream:#f7f4ef;--cream2:#ede9e1;--warm:#d4c5a9;--gold:#c9a84c;--gold2:#b8942e;--card:#fff;--text:#1c2b22;--muted:#6b7f72;--border:#e0dbd0;--red:#d64e4e;--red-bg:#fdf0f0;--green:#2e7d52;--green-bg:#edf7f1;--amber:#b87c1a;--amber-bg:#fdf6e8;--blue:#2563eb;--blue-bg:#eff6ff;--r:14px;--sh:0 1px 3px rgba(26,58,42,.07),0 6px 20px rgba(26,58,42,.06);--shl:0 8px 32px rgba(26,58,42,.14)}
@@ -232,7 +232,8 @@ async function rR(){
   ]);
   const tI=(ing||[]).reduce((a,r)=>a+(+r.valor),0);
   const tG=(gas||[]).reduce((a,r)=>a+(+r.valor),0);
-  // Obligaciones: titular=uid con deudor_nombre = me deben; deudor=uid y titular!=uid = le debo
+  // Obligaciones: titular=uid = me deben (incluye titular===deudor = auto-registro)
+  // deudor=uid y titular!=uid = le debo (obligaciones donde otro es titular)
   const meDeben=(obls||[]).filter(o=>o.titular_id===uid).reduce((a,o)=>{
     const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
     return a+Math.max(+o.monto_total-p,0);},0);
@@ -294,22 +295,24 @@ async function rR(){
       <td class="num ${esMio?'pos':'neg'}">${fmt(s)}</td></tr>`;
   }).join('')}</table></div></div>`:''}`;
 
-  // Renderizar gráficas
-  if(catLabels.length){
-    const ctx=$('#chartPie')?.getContext('2d');
-    if(ctx){
-      if(chartPie)chartPie.destroy();
-      chartPie=new Chart(ctx,{type:'doughnut',data:{labels:catLabels,datasets:[{data:catVals,backgroundColor:catColors,borderWidth:2,borderColor:'#fff'}]},options:{plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12}}},cutout:'65%',animation:{duration:600}}});
+  // Renderizar gráficas — usar setTimeout para asegurar que el DOM esté listo
+  setTimeout(()=>{
+    if(catLabels.length){
+      const ctx=$('#chartPie')?.getContext('2d');
+      if(ctx){
+        if(chartPie){try{chartPie.destroy()}catch(e){}}
+        chartPie=new Chart(ctx,{type:'doughnut',data:{labels:catLabels,datasets:[{data:catVals,backgroundColor:catColors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12}}},cutout:'65%',animation:{duration:600}}});
+      }
     }
-  }
-  const ctx2=$('#chartBar')?.getContext('2d');
-  if(ctx2){
-    if(chartBar)chartBar.destroy();
-    chartBar=new Chart(ctx2,{type:'bar',data:{labels:meses6,datasets:[
-      {label:'Ingresos',data:ingMes,backgroundColor:'rgba(46,125,82,.7)',borderRadius:6},
-      {label:'Gastos',data:gasMes,backgroundColor:'rgba(214,78,78,.7)',borderRadius:6}
-    ]},options:{plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(0,0,0,.05)'}},x:{grid:{display:false}}},animation:{duration:600}}});
-  }
+    const ctx2=$('#chartBar')?.getContext('2d');
+    if(ctx2){
+      if(chartBar){try{chartBar.destroy()}catch(e){}}
+      chartBar=new Chart(ctx2,{type:'bar',data:{labels:meses6,datasets:[
+        {label:'Ingresos',data:ingMes,backgroundColor:'rgba(46,125,82,.7)',borderRadius:6},
+        {label:'Gastos',data:gasMes,backgroundColor:'rgba(214,78,78,.7)',borderRadius:6}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(0,0,0,.05)'}},x:{grid:{display:false}}},animation:{duration:600}}});
+    }
+  },100);
 }
 
 // ── PRESUPUESTO ────────────────────────────────────────────────────
@@ -417,6 +420,7 @@ async function rO(){
 
   // Filtrar por segmento activo
   const filtrados=segV==='Todos'?act:act.filter(o=>(o.segmento||'Préstamos Personales')===segV);
+  // titular===uid = me deben (incluyendo auto-registros donde titular===deudor===uid)
   const meDeben=filtrados.filter(o=>o.titular_id===uid);
   const leDebo=filtrados.filter(o=>o.deudor_id===uid&&o.titular_id!==uid);
 
@@ -759,7 +763,8 @@ async function procExt(e){
 async function parsePDF(file){
   // Usar pdf.js para extracción real de texto
   if(typeof pdfjsLib==='undefined'){toast('⚠ Error cargando pdf.js. Recarga la página.',4000);return}
-  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  // Usar workerSrc desde CDN compatible con GitHub Pages
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const ab=await file.arrayBuffer();
   let allLines=[];
   try{
