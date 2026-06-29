@@ -238,7 +238,7 @@ SB.auth.onAuthStateChange(async(ev,sess)=>{
 });
 
 function nav(btn){$$('.nb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');V=btn.dataset.v;rv()}
-function rv(){{resumen:rR,presupuesto:rP,obligaciones:rO,ahorros:rA,extractos:rE,nieve:rN}[V]?.()}
+function rv(){const m={resumen:rR,presupuesto:rP,obligaciones:rO,ahorros:rA,extractos:rE,nieve:rN};if(m[V])m[V]()}
 
 // ── RESUMEN ────────────────────────────────────────────────
 async function rR(){
