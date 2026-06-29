@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finanzas Personales</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── DESIGN TOKENS ──────────────────────────────────────────────
+   Identidad: verde profundo + crema cálida + acento dorado suave.
+   Tipografía: Inter para UI, números en variante tnum.
+   Firma: la línea de progreso animada en los objetivos de ahorro.
+──────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --forest: #1a3a2a;
+  --forest2: #254d38;
+  --forest3: #2e6347;
+  --sage: #5a8a6f;
+  --mint: #a8d5b5;
+  --cream: #f7f4ef;
+  --cream2: #ede9e1;
+  --warm: #d4c5a9;
+  --gold: #c9a84c;
+  --gold2: #b8942e;
+  --card: #ffffff;
+  --text: #1c2b22;
+  --muted: #6b7f72;
+  --border: #e0dbd0;
+  --red: #d64e4e;
+  --red-bg: #fdf0f0;
+  --green: #2e7d52;
+  --green-bg: #edf7f1;
+  --amber: #b87c1a;
+  --amber-bg: #fdf6e8;
+  --r: 14px;
+  --shadow: 0 1px 3px rgba(26,58,42,.07), 0 6px 20px rgba(26,58,42,.06);
+  --shadow-lg: 0 8px 32px rgba(26,58,42,.14);
+}
+
+* { margin:0; padding:0; box-sizing:border-box }
+body { font-family:'Inter',system-ui,sans-serif; background:var(--cream); color:var(--text); font-size:15px; -webkit-font-smoothing:antialiased }
+::selection { background:var(--mint); color:var(--forest) }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width:6px; height:6px }
+::-webkit-scrollbar-track { background:var(--cream2) }
+::-webkit-scrollbar-thumb { background:var(--warm); border-radius:3px }
+
+/* ── AUTH SCREEN ──────────────────────────────────────────────── */
+#auth-screen {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background: linear-gradient(145deg, var(--forest) 0%, var(--forest2) 50%, var(--forest3) 100%);
+  padding:20px; position:relative; overflow:hidden;
+}
+#auth-screen::before {
+  content:''; position:absolute; inset:0;
+  background: radial-gradient(ellipse 60% 50% at 70% 40%, rgba(169,213,181,.08) 0%, transparent 70%),
+              radial-gradient(ellipse 40% 60% at 20% 70%, rgba(201,168,76,.06) 0%, transparent 70%);
+}
+.auth-card {
+  background:var(--card); border-radius:22px; padding:44px 40px;
+  width:100%; max-width:420px; box-shadow:var(--shadow-lg); position:relative;
+}
+.brand-mark {
+  display:flex; align-items:center; gap:12px; margin-bottom:32px;
+}
+.brand-icon {
+  width:48px; height:48px; border-radius:12px;
+  background:linear-gradient(135deg, var(--forest), var(--forest3));
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.brand-icon svg { width:26px; height:26px; fill:none; stroke:var(--mint); stroke-width:1.8 }
+.brand-name { font-size:19px; font-weight:700; color:var(--forest); letter-spacing:-.3px; line-height:1.2 }
+.brand-name em { font-style:normal; color:var(--gold); }
+.brand-sub { font-size:12px; color:var(--muted); margin-top:2px; font-weight:400 }
+
+.auth-tabs { display:flex; border:1.5px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:26px }
+.auth-tab { flex:1; border:none; background:transparent; padding:10px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; color:var(--muted); transition:.15s }
+.auth-tab.active { background:var(--forest); color:#fff }
+
+.fld { margin-bottom:18px }
+.fld label { display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:6px; letter-spacing:.4px; text-transform:uppercase }
+.fld input { width:100%; border:1.5px solid var(--border); border-radius:10px; padding:11px 14px; font-size:14.5px; font-family:inherit; background:var(--cream); transition:.15s; color:var(--text) }
+.fld input:focus { outline:none; border-color:var(--forest3); background:#fff; box-shadow:0 0 0 3px rgba(46,99,71,.1) }
+.fld2 { display:grid; grid-template-columns:1fr 1fr; gap:12px }
+
+.btn-primary {
+  width:100%; background:linear-gradient(135deg,var(--forest),var(--forest3));
+  color:#fff; border:none; border-radius:10px; padding:13px;
+  font-weight:700; font-size:15px; cursor:pointer; font-family:inherit;
+  transition:.15s; letter-spacing:.2px;
+}
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(26,58,42,.35) }
+.btn-primary:disabled { opacity:.6; transform:none; cursor:not-allowed }
+
+.auth-footer { font-size:12px; color:var(--muted); text-align:center; margin-top:20px }
+.initials-credit { font-size:11px; color:var(--warm); text-align:center; margin-top:24px; letter-spacing:1.5px; font-weight:500 }
+.msg { padding:10px 13px; border-radius:8px; font-size:13.5px; margin-bottom:14px; display:none }
+.msg.error { background:var(--red-bg); color:var(--red); border:1px solid #f5c6c6; display:block }
+.msg.success { background:var(--green-bg); color:var(--green); border:1px solid #b8dfc8; display:block }
+
+/* ── APP LAYOUT ───────────────────────────────────────────────── */
+#app-screen { display:none; min-height:100vh }
+
+header {
+  background:linear-gradient(135deg, var(--forest) 0%, var(--forest2) 100%);
+  padding:0 24px; height:62px; display:flex; align-items:center; gap:16px;
+  position:sticky; top:0; z-index:50; box-shadow:0 2px 12px rgba(26,58,42,.2);
+}
+.h-brand { display:flex; align-items:center; gap:10px; color:#fff }
+.h-icon { width:34px; height:34px; border-radius:9px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center }
+.h-icon svg { width:18px; height:18px; fill:none; stroke:var(--mint); stroke-width:1.8 }
+.h-title { font-size:16px; font-weight:700; letter-spacing:-.2px }
+.h-title small { font-size:11px; font-weight:400; color:rgba(255,255,255,.5); margin-left:6px; letter-spacing:.5px }
+.h-right { margin-left:auto; display:flex; align-items:center; gap:10px }
+.h-user { font-size:13px; color:rgba(255,255,255,.7); font-weight:500 }
+.h-avatar { width:34px; height:34px; border-radius:50%; background:var(--gold); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:var(--forest); cursor:pointer }
+.btn-logout { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); color:rgba(255,255,255,.8); border-radius:8px; padding:6px 12px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit; transition:.15s }
+.btn-logout:hover { background:rgba(255,255,255,.2) }
+
+/* ── NAV ── */
+nav { background:var(--card); border-bottom:1px solid var(--border); padding:0 24px; display:flex; gap:2px; overflow-x:auto; position:sticky; top:62px; z-index:40 }
+.nav-btn { border:none; background:none; padding:15px 18px; font-size:14px; font-weight:600; color:var(--muted); cursor:pointer; font-family:inherit; border-bottom:3px solid transparent; white-space:nowrap; transition:.15s; display:flex; align-items:center; gap:7px }
+.nav-btn:hover { color:var(--forest) }
+.nav-btn.active { color:var(--forest); border-bottom-color:var(--gold) }
+.nav-btn svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8 }
+
+main { max-width:1200px; margin:0 auto; padding:26px 24px 80px }
+
+/* ── CARDS & COMPONENTS ── */
+.card { background:var(--card); border-radius:var(--r); box-shadow:var(--shadow); border:1px solid var(--border); padding:22px }
+.card-title { font-size:15px; font-weight:700; color:var(--forest); display:flex; justify-content:space-between; align-items:center; margin-bottom:18px }
+.cards-3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:22px }
+.stat-card { background:var(--card); border-radius:var(--r); box-shadow:var(--shadow); border:1px solid var(--border); padding:20px 22px }
+.stat-lbl { font-size:11.5px; font-weight:700; color:var(--muted); letter-spacing:.8px; text-transform:uppercase }
+.stat-val { font-size:28px; font-weight:800; margin-top:6px; font-variant-numeric:tabular-nums }
+.stat-hint { font-size:12px; color:var(--muted); margin-top:3px }
+.pos { color:var(--green) } .neg { color:var(--red) } .warn { color:var(--amber) }
+
+/* ── TABLES ── */
+.table-wrap { overflow-x:auto }
+table { width:100%; border-collapse:collapse; font-size:13.5px }
+th { background:var(--cream); color:var(--muted); text-align:left; padding:10px 13px; font-size:11px; letter-spacing:.7px; text-transform:uppercase; font-weight:700; border-bottom:1px solid var(--border) }
+td { padding:11px 13px; border-bottom:1px solid var(--border); vertical-align:middle }
+tr:last-child td { border-bottom:none }
+tr.hover:hover { background:var(--cream) }
+.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap }
+
+/* ── BADGES ── */
+.badge { font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:.4px; text-transform:uppercase; display:inline-block; white-space:nowrap }
+.b-green { background:var(--green-bg); color:var(--green) }
+.b-red { background:var(--red-bg); color:var(--red) }
+.b-amber { background:var(--amber-bg); color:var(--amber) }
+.b-muted { background:var(--cream2); color:var(--muted) }
+
+/* ── BUTTONS ── */
+.btn { border:none; border-radius:9px; padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer; font-family:inherit; transition:.12s; display:inline-flex; align-items:center; gap:6px }
+.btn svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2 }
+.btn-forest { background:var(--forest); color:#fff }
+.btn-forest:hover { background:var(--forest2) }
+.btn-gold { background:linear-gradient(135deg,var(--gold),var(--gold2)); color:var(--forest) }
+.btn-gold:hover { filter:brightness(1.05) }
+.btn-ghost { background:var(--cream); color:var(--muted); border:1.5px solid var(--border) }
+.btn-ghost:hover { color:var(--forest); border-color:var(--sage) }
+.btn-danger { background:var(--red-bg); color:var(--red) }
+.btn-sm { padding:5px 11px; font-size:12px; border-radius:7px }
+.btn-xs { padding:3px 8px; font-size:11px; border-radius:6px }
+
+/* ── PROGRESS BAR ── */
+.prog-wrap { height:8px; background:var(--cream2); border-radius:4px; overflow:hidden; margin:10px 0 }
+.prog-bar { height:100%; border-radius:4px; transition:width .5s ease }
+
+/* ── FORM ── */
+.form-fld { margin-bottom:16px }
+.form-fld label { display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:5px; letter-spacing:.3px; text-transform:uppercase }
+.form-fld input, .form-fld select, .form-fld textarea { width:100%; border:1.5px solid var(--border); border-radius:9px; padding:10px 13px; font-size:14px; font-family:inherit; background:var(--cream); color:var(--text); transition:.15s }
+.form-fld input:focus, .form-fld select:focus, .form-fld textarea:focus { outline:none; border-color:var(--forest3); background:#fff }
+.form-2 { display:grid; grid-template-columns:1fr 1fr; gap:13px }
+.seg { display:flex; border:1.5px solid var(--border); border-radius:10px; overflow:hidden }
+.seg button { flex:1; border:none; background:var(--cream); padding:10px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit; color:var(--muted); transition:.12s }
+.seg button.act-me { background:var(--red-bg); color:var(--red) }
+.seg button.act-me2 { background:var(--green-bg); color:var(--green) }
+
+/* ── MODAL ── */
+.modal-bg { position:fixed; inset:0; background:rgba(26,58,42,.5); display:none; align-items:center; justify-content:center; z-index:200; padding:20px; backdrop-filter:blur(3px) }
+.modal-bg.open { display:flex }
+.modal { background:var(--card); border-radius:18px; padding:28px; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25) }
+.modal h3 { font-size:17px; font-weight:700; margin-bottom:18px; display:flex; justify-content:space-between; align-items:center; color:var(--forest) }
+.modal-x { cursor:pointer; color:var(--muted); font-size:22px; font-weight:300 }
+
+/* ── TOAST ── */
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--forest); color:#fff; padding:11px 22px; border-radius:30px; font-size:14px; font-weight:600; opacity:0; transition:.3s; z-index:300; pointer-events:none; white-space:nowrap }
+.toast.show { opacity:1 }
+
+/* ── EMPTY STATE ── */
+.empty { text-align:center; padding:44px 20px; color:var(--muted) }
+.empty-icon { font-size:40px; margin-bottom:12px }
+.empty p { font-size:14px; line-height:1.6 }
+
+/* ── SAVING INDICATOR ── */
+.dot-syncing { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--gold); animation:pulse 1.4s infinite }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px){ .form-2{grid-template-columns:1fr} .cards-3{grid-template-columns:1fr} main{padding:16px 14px 70px} .modal{padding:20px} }
+@media print{ header,nav,.btn,.no-print{display:none!important} }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ AUTH SCREEN ═══════════════════════ -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="brand-mark">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/><path d="M12 6v6l4 2" stroke-linecap="round"/><path d="M7 14h2m2 0h4" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Finanzas <em>Personales</em></div>
+        <div class="brand-sub">Control inteligente de tus finanzas</div>
+      </div>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Ingresar</button>
+      <button class="auth-tab" onclick="switchAuthTab('register')">Registrarse</button>
+    </div>
+
+    <div id="auth-msg" class="msg"></div>
+
+    <!-- LOGIN -->
+    <div id="tab-login">
+      <div class="fld"><label>Correo electrónico</label><input type="email" id="l-email" placeholder="tu@correo.com"></div>
+      <div class="fld"><label>Contraseña</label><input type="password" id="l-pass" placeholder="••••••••"></div>
+      <button class="btn-primary" onclick="doLogin()" id="btn-login">Ingresar a mi cuenta</button>
+      <div class="auth-footer">¿Olvidaste tu contraseña? <a href="#" onclick="doReset()" style="color:var(--forest3);font-weight:600">Recuperar acceso</a></div>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="tab-register" style="display:none">
+      <div class="fld2">
+        <div class="fld"><label>Nombre</label><input type="text" id="r-nombre" placeholder="Juan"></div>
+        <div class="fld"><label>Apellido</label><input type="text" id="r-apellido" placeholder="Pérez"></div>
+      </div>
+      <div class="fld"><label>Correo electrónico</label><input type="email" id="r-email" placeholder="tu@correo.com"></div>
+      <div class="fld"><label>Contraseña</label><input type="password" id="r-pass" placeholder="Mínimo 8 caracteres"></div>
+      <button class="btn-primary" onclick="doRegister()" id="btn-register">Crear mi cuenta gratuita</button>
+      <div class="auth-footer">Al registrarte aceptas usar esta plataforma de forma responsable.</div>
+    </div>
+
+    <div class="initials-credit">D · A · N · C</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ APP SCREEN ════════════════════════ -->
+<div id="app-screen">
+  <header>
+    <div class="h-brand">
+      <div class="h-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/><path d="M12 6v6l4 2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="h-title">Finanzas Personales <small>beta</small></div>
+    </div>
+    <div class="h-right">
+      <span class="h-user" id="h-username"></span>
+      <div class="h-avatar" id="h-avatar">?</div>
+      <button class="btn-logout" onclick="doLogout()">Salir</button>
+    </div>
+  </header>
+
+  <nav>
+    <button class="nav-btn active" data-view="resumen" onclick="nav(this,'resumen')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Resumen
+    </button>
+    <button class="nav-btn" data-view="presupuesto" onclick="nav(this,'presupuesto')">
+      <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke-linecap="round"/></svg>Presupuesto
+    </button>
+    <button class="nav-btn" data-view="obligaciones" onclick="nav(this,'obligaciones')">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round"/></svg>Obligaciones
+    </button>
+    <button class="nav-btn" data-view="ahorros" onclick="nav(this,'ahorros')">
+      <svg viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 00-1-1H5a2 2 0 000 4h15a1 1 0 011 1v4h-3a2 2 0 000 4h3a1 1 0 001-1v-2a1 1 0 00-1-1" stroke-linecap="round"/><path d="M3 5v14a2 2 0 002 2h15a1 1 0 001-1v-4" stroke-linecap="round"/></svg>Ahorros
+    </button>
+    <button class="nav-btn" data-view="extractos" onclick="nav(this,'extractos')">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15" stroke-linecap="round"/></svg>Extractos
+    </button>
+    <button class="nav-btn" data-view="nieve" onclick="nav(this,'nieve')">
+      <svg viewBox="0 0 24 24"><path d="M2 12h20M12 2l-4 4m4-4l4 4M12 22l-4-4m4 4l4-4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M19.07 4.93l-2.83 2.83M7.76 16.24l-2.83 2.83" stroke-linecap="round"/></svg>Bola de Nieve
+    </button>
+  </nav>
+
+  <main id="main-content"></main>
+</div>
+
+<!-- MODAL GLOBAL -->
+<div class="modal-bg" id="modal-bg"><div class="modal" id="modal-box"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  SUPABASE INIT
+// ══════════════════════════════════════════════════════════
+const SUPABASE_URL = "https://dzlxyapzbdhfdundgcpm.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_TXM_Hg1PwsKFrXkoBCzfcQ_VaDkIcSs";
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let USER = null, PERFIL = null, VISTA = 'resumen';
+const MES_ACT = new Date().getMonth() + 1;
+const ANIO_ACT = new Date().getFullYear();
+
+// ── Utils ──
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const fmt = v => '$ ' + (+v||0).toLocaleString('es-EC',{minimumFractionDigits:2,maximumFractionDigits:2});
+const ffecha = d => d ? new Date(d+'T00:00:00').toLocaleDateString('es-EC',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+const mesNombre = m => ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m-1];
+const hoy = () => new Date().toISOString().slice(0,10);
+
+function toast(msg, dur=2400){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+function openModal(html){ $('#modal-box').innerHTML = html; $('#modal-bg').classList.add('open') }
+function closeModal(){ $('#modal-bg').classList.remove('open') }
+$('#modal-bg').addEventListener('click', e => { if(e.target.id==='modal-bg') closeModal() });
+
+// ── Auth UI ──
+function switchAuthTab(tab){
+  $$('.auth-tab').forEach(b => b.classList.toggle('active', b.onclick.toString().includes(tab)));
+  $('#tab-login').style.display = tab==='login' ? 'block' : 'none';
+  $('#tab-register').style.display = tab==='register' ? 'block' : 'none';
+  clearAuthMsg();
+}
+function showAuthMsg(msg, type='error'){
+  const el = $('#auth-msg'); el.textContent = msg; el.className = 'msg ' + type;
+}
+function clearAuthMsg(){ $('#auth-msg').className = 'msg' }
+
+async function doLogin(){
+  const email = $('#l-email').value.trim(), pass = $('#l-pass').value;
+  if(!email||!pass) return showAuthMsg('Ingresa tu correo y contraseña.');
+  $('#btn-login').disabled = true; $('#btn-login').textContent = 'Verificando...';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if(error){ showAuthMsg(error.message); $('#btn-login').disabled=false; $('#btn-login').textContent='Ingresar a mi cuenta'; }
+}
+
+async function doRegister(){
+  const nombre=$('#r-nombre').value.trim(), apellido=$('#r-apellido').value.trim();
+  const email=$('#r-email').value.trim(), pass=$('#r-pass').value;
+  if(!nombre||!email||!pass) return showAuthMsg('Todos los campos son requeridos.');
+  if(pass.length<8) return showAuthMsg('La contraseña debe tener al menos 8 caracteres.');
+  $('#btn-register').disabled=true; $('#btn-register').textContent='Creando cuenta...';
+  const { error } = await sb.auth.signUp({ email, password:pass, options:{ data:{ nombre, apellido } } });
+  if(error){ showAuthMsg(error.message); $('#btn-register').disabled=false; $('#btn-register').textContent='Crear mi cuenta gratuita'; }
+  else showAuthMsg('✓ Revisa tu correo para confirmar tu cuenta.', 'success');
+}
+
+async function doReset(){
+  const email = prompt('Ingresa tu correo para recuperar acceso:');
+  if(!email) return;
+  await sb.auth.resetPasswordForEmail(email);
+  showAuthMsg('Revisa tu correo con el enlace de recuperación.', 'success');
+}
+
+async function doLogout(){ await sb.auth.signOut() }
+
+// ── Auth state ──
+sb.auth.onAuthStateChange(async (event, session) => {
+  if(session?.user){
+    USER = session.user;
+    await cargarPerfil();
+    mostrarApp();
+  } else {
+    USER = null; PERFIL = null;
+    $('#auth-screen').style.display = 'flex';
+    $('#app-screen').style.display = 'none';
+  }
+});
+
+async function cargarPerfil(){
+  const { data } = await sb.from('perfiles').select('*').eq('id', USER.id).single();
+  PERFIL = data;
+}
+
+function mostrarApp(){
+  $('#auth-screen').style.display = 'none';
+  $('#app-screen').style.display = 'block';
+  const nombre = PERFIL?.nombre || USER.email.split('@')[0];
+  $('#h-username').textContent = nombre;
+  $('#h-avatar').textContent = nombre.charAt(0).toUpperCase();
+  renderVista();
+}
+
+// ── Navigation ──
+function nav(btn, vista){
+  $$('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  VISTA = vista;
+  renderVista();
+}
+
+function renderVista(){
+  const views = {
+    resumen: rResumen,
+    presupuesto: rPresupuesto,
+    obligaciones: rObligaciones,
+    ahorros: rAhorros,
+    extractos: rExtractos,
+    nieve: rNieve
+  };
+  (views[VISTA] || rResumen)();
+}
+
+// ══════════════════════════════════════════════════════════
+//  VISTA: RESUMEN
+// ══════════════════════════════════════════════════════════
+async function rResumen(){
+  $('#main-content').innerHTML = '<div class="empty"><div class="dot-syncing"></div></div>';
+  const uid = USER.id;
+  const [{ data: ingresos }, { data: gastos }, { data: obls }] = await Promise.all([
+    sb.from('ingresos').select('valor').eq('usuario_id', uid).eq('anio', ANIO_ACT).eq('mes', MES_ACT),
+    sb.from('gastos').select('valor,naturaleza').eq('usuario_id', uid).eq('anio', ANIO_ACT).eq('mes', MES_ACT),
+    sb.from('obligaciones').select('*,cuotas(valor_pagado,estado)').or(`titular_id.eq.${uid},deudor_id.eq.${uid}`).eq('estado','activa')
+  ]);
+  const totIngreso = (ingresos||[]).reduce((a,r)=>a+(+r.valor||0),0);
+  const totGasto   = (gastos||[]).reduce((a,r)=>a+(+r.valor||0),0);
+  const meDeben    = (obls||[]).filter(o=>o.titular_id===uid).reduce((a,o)=>{
+    const pag = (o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado||0),0);
+    return a + (+o.monto_total - pag);
+  },0);
+  const leDebo     = (obls||[]).filter(o=>o.deudor_id===uid).reduce((a,o)=>{
+    const pag = (o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado||0),0);
+    return a + (+o.monto_total - pag);
+  },0);
+  const balance = totIngreso - totGasto;
+  const nombre = PERFIL?.nombre || 'tú';
+  $('#main-content').innerHTML = `
+  <h2 style="font-size:14px;color:var(--muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:16px">
+    ${mesNombre(MES_ACT)} ${ANIO_ACT} — Hola, ${nombre}
+  </h2>
+  <div class="cards-3">
+    <div class="stat-card">
+      <div class="stat-lbl">Ingresos del mes</div>
+      <div class="stat-val pos">${fmt(totIngreso)}</div>
+      <div class="stat-hint">registrados este mes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Gastos del mes</div>
+      <div class="stat-val ${totGasto>totIngreso?'neg':'warn'}">${fmt(totGasto)}</div>
+      <div class="stat-hint">${totIngreso>0?((totGasto/totIngreso*100).toFixed(0)+'% de tus ingresos'):''}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Balance neto</div>
+      <div class="stat-val ${balance>=0?'pos':'neg'}">${fmt(balance)}</div>
+      <div class="stat-hint">ingresos − gastos</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Me deben</div>
+      <div class="stat-val pos">${fmt(meDeben)}</div>
+      <div class="stat-hint">en obligaciones activas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Le debo a otros</div>
+      <div class="stat-val neg">${fmt(leDebo)}</div>
+      <div class="stat-hint">en obligaciones activas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Posición neta</div>
+      <div class="stat-val ${(meDeben-leDebo)>=0?'pos':'neg'}">${fmt(meDeben-leDebo)}</div>
+      <div class="stat-hint">me deben − le debo</div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">Distribución del mes <button class="btn btn-forest btn-sm" onclick="nav(document.querySelector('[data-view=presupuesto]'),'presupuesto')">Ver presupuesto</button></div>
+    ${totGasto>0 ? `
+    ${['Necesidades','Deseos','Ahorros'].map(n=>{
+      const v = (gastos||[]).filter(g=>g.naturaleza===n).reduce((a,g)=>a+(+g.valor),0);
+      const pct = totGasto>0?(v/totGasto*100).toFixed(0):0;
+      const col = n==='Necesidades'?'var(--forest3)':n==='Deseos'?'var(--gold)':'var(--sage)';
+      return `<div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span style="font-weight:600">${n}</span><span>${fmt(v)} <span style="color:var(--muted)">(${pct}%)</span></span>
+        </div>
+        <div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct,100)}%;background:${col}"></div></div>
+      </div>`;
+    }).join('')}` : '<div class="empty"><div class="empty-icon">📊</div><p>Registra tus ingresos y gastos<br>en la sección <b>Presupuesto</b> para ver el análisis aquí.</p></div>'}
+  </div>
+  <div class="card">
+    <div class="card-title">Obligaciones activas <button class="btn btn-forest btn-sm" onclick="nav(document.querySelector('[data-view=obligaciones]'),'obligaciones')">Ver todas</button></div>
+    ${(obls||[]).length===0 ? '<div class="empty"><div class="empty-icon">🤝</div><p>Sin obligaciones activas.</p></div>' : `
+    <div class="table-wrap"><table>
+      <tr><th>Concepto</th><th>Rol</th><th>Saldo</th><th>Estado</th></tr>
+      ${(obls||[]).slice(0,5).map(o=>{
+        const pag = (o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado||0),0);
+        const saldo = +o.monto_total - pag;
+        const esTitular = o.titular_id===uid;
+        return `<tr class="hover"><td><b>${o.nombre}</b></td>
+          <td><span class="badge ${esTitular?'b-green':'b-red'}">${esTitular?'Me deben':'Le debo'}</span></td>
+          <td class="num ${esTitular?'pos':'neg'}">${fmt(saldo)}</td>
+          <td><span class="badge b-muted">Activa</span></td></tr>`;
+      }).join('')}
+    </table></div>`}
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  VISTA: PRESUPUESTO
+// ══════════════════════════════════════════════════════════
+let mesVer = MES_ACT, anioVer = ANIO_ACT;
+async function rPresupuesto(){
+  $('#main-content').innerHTML = '<div class="empty"><div class="dot-syncing"></div></div>';
+  const uid = USER.id;
+  const [{ data: ing }, { data: gas }, { data: presup }] = await Promise.all([
+    sb.from('ingresos').select('*').eq('usuario_id',uid).eq('anio',anioVer).eq('mes',mesVer).order('created_at'),
+    sb.from('gastos').select('*').eq('usuario_id',uid).eq('anio',anioVer).eq('mes',mesVer).order('created_at'),
+    sb.from('presupuestos').select('*').eq('usuario_id',uid).eq('anio',anioVer).eq('mes',mesVer).single()
+  ]);
+  const totIng = (ing||[]).reduce((a,r)=>a+(+r.valor),0);
+  const pctN = presup?.pct_necesidades||50, pctD = presup?.pct_deseos||30, pctA = presup?.pct_ahorros||20;
+  const budN=totIng*pctN/100, budD=totIng*pctD/100, budA=totIng*pctA/100;
+  const gasN=(gas||[]).filter(g=>g.naturaleza==='Necesidades').reduce((a,g)=>a+(+g.valor),0);
+  const gasD=(gas||[]).filter(g=>g.naturaleza==='Deseos').reduce((a,g)=>a+(+g.valor),0);
+  const gasAh=(gas||[]).filter(g=>g.naturaleza==='Ahorros').reduce((a,g)=>a+(+g.valor),0);
+
+  const prev = new Date(anioVer,mesVer-2,1), next = new Date(anioVer,mesVer,1);
+  const pMes=prev.getMonth()+1, pAnio=prev.getFullYear();
+  const nMes=next.getMonth()+1, nAnio=next.getFullYear();
+
+  $('#main-content').innerHTML = `
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <button class="btn btn-ghost" onclick="mesVer=${pMes};anioVer=${pAnio};rPresupuesto()">‹</button>
+    <h2 style="font-size:17px;font-weight:700">${mesNombre(mesVer)} ${anioVer}</h2>
+    <button class="btn btn-ghost" onclick="mesVer=${nMes};anioVer=${nAnio};rPresupuesto()">›</button>
+    <button class="btn btn-forest btn-sm" style="margin-left:auto" onclick="modalConfigPresupuesto(${pctN},${pctD},${pctA})">⚙ Regla ${pctN}/${pctD}/${pctA}</button>
+  </div>
+  <div class="cards-3" style="margin-bottom:22px">
+    <div class="stat-card">
+      <div class="stat-lbl">Total ingresos</div>
+      <div class="stat-val pos">${fmt(totIng)}</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%" onclick="modalIngreso()">＋ Registrar ingreso</button>
+    </div>
+    ${[['Necesidades',budN,gasN,'var(--forest3)'],['Deseos',budD,gasD,'var(--gold)'],['Ahorros',budA,gasAh,'var(--sage)']].map(([n,b,g,c])=>`
+    <div class="stat-card">
+      <div class="stat-lbl">${n}</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px">
+        <span class="stat-val ${g>b?'neg':''}" style="font-size:22px">${fmt(g)}</span>
+        <span style="font-size:12px;color:var(--muted)">de ${fmt(b)}</span>
+      </div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(b>0?g/b*100:0,100)}%;background:${c}"></div></div>
+      <div style="font-size:11.5px;color:var(--muted)">${b>0?((g/b*100).toFixed(0))+'% utilizado':'Sin presupuesto asignado'}</div>
+    </div>`).join('')}
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+    <div class="card">
+      <div class="card-title">Ingresos <button class="btn btn-gold btn-sm" onclick="modalIngreso()">＋ Agregar</button></div>
+      ${(ing||[]).length===0?'<div class="empty"><p>Sin ingresos este mes</p></div>':''}
+      <div class="table-wrap"><table>
+        ${(ing||[]).map(r=>`<tr class="hover">
+          <td>${r.concepto}</td><td class="num pos"><b>${fmt(r.valor)}</b></td>
+          <td><button class="btn btn-danger btn-xs" onclick="delIngreso('${r.id}')">✕</button></td>
+        </tr>`).join('')}
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Gastos <button class="btn btn-gold btn-sm" onclick="modalGasto()">＋ Registrar</button></div>
+      ${(gas||[]).length===0?'<div class="empty"><p>Sin gastos este mes</p></div>':''}
+      <div class="table-wrap" style="max-height:420px;overflow-y:auto"><table>
+        ${(gas||[]).map(g=>`<tr class="hover">
+          <td><b>${g.concepto}</b><div style="font-size:11px;color:var(--muted)">${g.naturaleza} · ${g.categoria}</div></td>
+          <td class="num neg"><b>${fmt(g.valor)}</b></td>
+          <td><button class="btn btn-danger btn-xs" onclick="delGasto('${g.id}')">✕</button></td>
+        </tr>`).join('')}
+      </table></div>
+    </div>
+  </div>`;
+}
+
+function modalConfigPresupuesto(n,d,a){
+  openModal(`<h3>Configurar distribución <span class="modal-x" onclick="closeModal()">×</span></h3>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Define el porcentaje de tus ingresos para cada categoría. Deben sumar 100%.</p>
+  <div class="form-2">
+    <div class="form-fld"><label>Necesidades (%)</label><input id="pn" type="number" value="${n}" min="0" max="100"></div>
+    <div class="form-fld"><label>Deseos (%)</label><input id="pd" type="number" value="${d}" min="0" max="100"></div>
+  </div>
+  <div class="form-fld" style="max-width:180px"><label>Ahorros (%)</label><input id="pa" type="number" value="${a}" min="0" max="100"></div>
+  <button class="btn btn-forest" style="width:100%" onclick="guardarPresupuesto()">Guardar distribución</button>`);
+}
+
+async function guardarPresupuesto(){
+  const n=+$('#pn').value, d=+$('#pd').value, a=+$('#pa').value;
+  if(n+d+a !== 100) return toast('⚠ Los porcentajes deben sumar 100%');
+  await sb.from('presupuestos').upsert({
+    usuario_id:USER.id, anio:anioVer, mes:mesVer,
+    pct_necesidades:n, pct_deseos:d, pct_ahorros:a
+  }, { onConflict:'usuario_id,anio,mes' });
+  toast('Distribución guardada ✓'); closeModal(); rPresupuesto();
+}
+
+function modalIngreso(){
+  openModal(`<h3>Registrar ingreso <span class="modal-x" onclick="closeModal()">×</span></h3>
+  <div class="form-fld"><label>Concepto</label><input id="i-cpt" placeholder="Ej: Sueldo, freelance, arriendo…"></div>
+  <div class="form-fld"><label>Valor ($)</label><input id="i-val" type="number" step="0.01"></div>
+  <div class="form-fld"><label>Fecha</label><input id="i-fec" type="date" value="${hoy()}"></div>
+  <button class="btn btn-forest" style="width:100%" onclick="guardarIngreso()">Guardar ingreso</button>`);
+}
+
+async function guardarIngreso(){
+  const c=$('#i-cpt').value.trim(), v=+$('#i-val').value, f=$('#i-fec').value;
+  if(!c||!v) return toast('⚠ Ingresa concepto y valor');
+  await sb.from('ingresos').insert({ usuario_id:USER.id, anio:anioVer, mes:mesVer, concepto:c, valor:v, fecha:f });
+  toast('Ingreso registrado ✓'); closeModal(); rPresupuesto();
+}
+
+async function delIngreso(id){ await sb.from('ingresos').delete().eq('id',id); rPresupuesto(); }
+
+function modalGasto(){
+  openModal(`<h3>Registrar gasto <span class="modal-x" onclick="closeModal()">×</span></h3>
+  <div class="form-fld"><label>Concepto</label><input id="g-cpt" placeholder="Ej: Mercado, Netflix, arriendo…"></div>
+  <div class="form-2">
+    <div class="form-fld"><label>Valor ($)</label><input id="g-val" type="number" step="0.01"></div>
+    <div class="form-fld"><label>Fecha</label><input id="g-fec" type="date" value="${hoy()}"></div>
+  </div>
+  <div class="form-2">
+    <div class="form-fld"><label>Naturaleza</label>
+      <select id="g-nat">
+        <option>Necesidades</option><option>Deseos</option><option>Ahorros</option>
+      </select>
+    </div>
+    <div class="form-fld"><label>Tipo</label>
+      <select id="g-tip"><option value="variable">Variable</option><option value="fijo">Fijo</option></select>
+    </div>
+  </div>
+  <div class="form-fld"><label>Categoría</label>
+    <select id="g-cat">
+      <option>Hogar</option><option>Alimentación</option><option>Transporte</option>
+      <option>Salud</option><option>Educación</option><option>Entretenimiento</option>
+      <option>Suscripciones</option><option>Ropa</option><option>Deudas</option><option>Otro</option>
+    </select>
+  </div>
+  <button class="btn btn-forest" style="width:100%" onclick="guardarGasto()">Guardar gasto</button>`);
+}
+
+async function guardarGasto(){
+  const c=$('#g-cpt').value.trim(), v=+$('#g-val').value;
+  if(!c||!v) return toast('⚠ Ingresa concepto y valor');
+  await sb.from('gastos').insert({
+    usuario_id:USER.id, anio:anioVer, mes:mesVer,
+    concepto:c, valor:v, fecha:$('#g-fec').value,
+    naturaleza:$('#g-nat').value, tipo:$('#g-tip').value,
+    categoria:$('#g-cat').value, fuente:'manual'
+  });
+  toast('Gasto registrado ✓'); closeModal(); rPresupuesto();
+}
+
+async function delGasto(id){ await sb.from('gastos').delete().eq('id',id); rPresupuesto(); }
+
+// ══════════════════════════════════════════════════════════
+//  VISTA: OBLIGACIONES
+// ══════════════════════════════════════════════════════════
+async function rObligaciones(){
+  $('#main-content').innerHTML = '<div class="empty"><div class="dot-syncing"></div></div>';
+  const uid = USER.id;
+  const { data: obls } = await sb.from('obligaciones')
+    .select('*,cuotas(id,numero,concepto,fecha_prog,valor_esperado,valor_pagado,estado)')
+    .or(`titular_id.eq.${uid},deudor_id.eq.${uid}`)
+    .order('created_at', { ascending: false });
+
+  // Cargar nombres de perfiles involucrados
+  const pids = [...new Set((obls||[]).flatMap(o=>[o.titular_id,o.deudor_id]))];
+  const { data: perfs } = await sb.from('perfiles').select('id,nombre,apellido').in('id', pids);
+  const pmap = Object.fromEntries((perfs||[]).map(p=>[p.id, p.nombre+(p.apellido?' '+p.apellido:'')]));
+
+  const meDeben=(obls||[]).filter(o=>o.titular_id===uid);
+  const leDebo=(obls||[]).filter(o=>o.deudor_id===uid);
+
+  function oblCard(o, esTitular){
+    const pag=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado||0),0);
+    const saldo=+o.monto_total-pag;
+    const pct=o.monto_total>0?(pag/o.monto_total*100).toFixed(0):0;
+    const contraparte = esTitular ? pmap[o.deudor_id]||'Usuario' : pmap[o.titular_id]||'Usuario';
+    return `<div class="card" style="margin-bottom:14px;cursor:pointer" onclick="verObl('${o.id}','${esTitular}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>
+          <div style="font-weight:700;font-size:15.5px">${o.nombre}</div>
+          <div style="font-size:12.5px;color:var(--muted);margin-top:3px">
+            ${esTitular?'← '+contraparte+' te debe':'→ Le debes a '+contraparte}
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:22px;font-weight:800;color:${esTitular?'var(--green)':'var(--red)'}">${fmt(saldo)}</div>
+          <span class="badge b-muted">${o.estado}</span>
+        </div>
+      </div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct,100)}%;background:${esTitular?'var(--green)':'var(--red)'}"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
+        <span>Pagado ${fmt(pag)} de ${fmt(o.monto_total)}</span><span>${pct}%</span>
+      </div>
+    </div>`;
+  }
+
+  const totMeDeben=meDeben.reduce((a,o)=>{const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);return a+o.monto_total-p;},0);
+  const totLeDebo=leDebo.reduce((a,o)=>{const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);return a+o.monto_total-p;},0);
+
+  $('#main-content').innerHTML = `
+  <div class="cards-3" style="margin-bottom:22px">
+    <div class="stat-card"><div class="stat-lbl">Me deben</div><div class="stat-val pos">${fmt(totMeDeben)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">Le debo a otros</div><div class="stat-val neg">${fmt(totLeDebo)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">Posición neta</div><div class="stat-val ${(totMeDeben-totLeDebo)>=0?'pos':'neg'}">${fmt(totMeDeben-totLeDebo)}</div></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <h2 style="font-size:17px;font-weight:700">Obligaciones</h2>
+    <button class="btn btn-gold" onclick="modalNuevaObl()">＋ Nueva obligación</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div>
+      <div style="font-size:12px;font-weight:700;color:var(--green);letter-spacing:.8px;text-transform:uppercase;margin-bottom:12px">← Me deben (${meDeben.length})</div>
+      ${meDeben.length===0?'<div class="empty"><div class="empty-icon">✅</div><p>Nadie te debe nada por ahora.</p></div>':meDeben.map(o=>oblCard(o,true)).join('')}
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:var(--red);letter-spacing:.8px;text-transform:uppercase;margin-bottom:12px">→ Le debo a (${leDebo.length})</div>
+      ${leDebo.length===0?'<div class="empty"><div class="empty-icon">🆓</div><p>No tienes deudas registradas.</p></div>':leDebo.map(o=>oblCard(o,false)).join('')}
+    </div>
+  </div>`;
+}
+
+function modalNuevaObl(){
+  openModal(`<h3>Nueva obligación <span class="modal-x" onclick="closeModal()">×</span></h3>
+  <div class="form-fld">
+    <label>¿Qué tipo de obligación?</label>
+    <div class="seg">
+      <button id="seg-md" class="act-me2" onclick="setSegObl('me_deben')">💚 Me deben</button>
+      <button id="seg-db" onclick="setSegObl('debo')">🔴 Le debo</button>
+    </div>
+  </div>
+  <div class="form-fld"><label>Nombre del registro</label><input id="no-nom" placeholder="Ej: Préstamo Juan, Deuda arriendo…"></div>
+  <div class="form-fld"><label>Correo de la otra persona (usuario de la plataforma)</label><input id="no-email" type="email" placeholder="correo@ejemplo.com"></div>
+  <div class="form-2">
+    <div class="form-fld"><label>Monto total ($)</label><input id="no-monto" type="number" step="0.01"></div>
+    <div class="form-fld"><label>Fecha de inicio</label><input id="no-fecha" type="date" value="${hoy()}"></div>
+  </div>
+  <div class="form-2">
+    <div class="form-fld"><label>N° cuotas (0 = libre)</label><input id="no-cuotas" type="number" value="0" min="0"></div>
+    <div class="form-fld"><label>Valor cuota (auto si vacío)</label><input id="no-vcuota" type="number" step="0.01"></div>
+  </div>
+  <div class="form-fld"><label>Notas</label><textarea id="no-notas" rows="2" placeholder="Condiciones, acuerdos…"></textarea></div>
+  <button class="btn btn-forest" style="width:100%" onclick="guardarObl()">Crear obligación</button>`);
+}
+
+let oblDir = 'me_deben';
+function setSegObl(d){
+  oblDir=d;
+  $('#seg-md').className=d==='me_deben'?'act-me2':'';
+  $('#seg-db').className=d==='debo'?'act-me':'';
+}
+
+async function guardarObl(){
+  const nom=$('#no-nom').value.trim(), email=$('#no-email').value.trim().toLowerCase();
+  const monto=+$('#no-monto').value, fecha=$('#no-fecha').value;
+  const nc=+$('#no-cuotas').value, vc=+$('#no-vcuota').value||null;
+  if(!nom||!email||!monto) return toast('⚠ Completa nombre, email y monto');
+  // Buscar al otro usuario
+  const { data: otros } = await sb.from('perfiles')
+    .select('id,nombre').ilike('id',
+      // Buscamos via auth.users — usamos un workaround: buscar perfil cuyo usuario tenga ese email
+      // Supabase no expone emails desde el cliente por seguridad, así que invitamos
+      '%');
+  // Simplificado: buscar por email en auth.users no es posible desde cliente con anon key
+  // Solución: el usuario ingresa el email y creamos una invitación + la obligación
+  const uid = USER.id;
+  let titularId = uid, deudorId = null;
+  // Por ahora guardamos con deudor_id = titular_id como placeholder hasta aceptar invitación
+  // En producción se resuelve con Edge Functions
+  const { data: obl, error } = await sb.from('obligaciones').insert({
+    titular_id: uid, deudor_id: uid, // temporal hasta que el otro acepte
+    nombre: nom, monto_total: monto, fecha_inicio: fecha,
+    num_cuotas: nc||null, valor_cuota: vc||null, notas: $('#no-notas').value,
+    estado: 'activa'
+  }).select().single();
+  if(error) return toast('Error al crear: '+error.message);
+  // Generar cuotas si aplica
+  if(nc>0){
+    const vcAuto = vc || monto/nc;
+    const filas=[];
+    const [y,m] = fecha.split('-').map(Number);
+    for(let i=1;i<=nc;i++){
+      const mm=(m-1+(i-1))%12+1, yy=y+Math.floor((m-1+(i-1))/12);
+      filas.push({obligacion_id:obl.id,numero:i,concepto:`Cuota ${i}`,
+        fecha_prog:`${yy}-${String(mm).padStart(2,'0')}-01`,valor_esperado:vcAuto});
+    }
+    await sb.from('cuotas').insert(filas);
+  } else {
+    await sb.from('cuotas').insert({obligacion_id:obl.id,numero:1,concepto:'Saldo único',valor_esperado:monto});
+  }
+  // Crear invitación al otro usuario
+  await sb.from('invitaciones').insert({remitente_id:uid,destinatario_email:email,obligacion_id:obl.id});
+  toast('Obligación creada ✓ — Se notificará a '+email);
+  closeModal(); rObligaciones();
+}
+
+async function verObl(id, esTitular){
+  const { data:o } = await sb.from('obligaciones')
+    .select('*,cuotas(*)').eq('id',id).single();
+  const pag=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
+  const saldo=+o.monto_total-pag;
+  const uid=USER.id; const esTit = o.titular_id===uid;
+  openModal(`<h3>${o.nombre} <span class="modal-x" onclick="closeModal()">×</span></h3>
+  <div style="display:flex;gap:10px;margin-bottom:14px">
+    <span class="badge ${esTit?'b-green':'b-red'}">${esTit?'Me deben':'Le debo'}</span>
+    <span class="badge b-muted">${o.estado}</span>
+  </div>
+  ${o.descripcion?`<p style="font-size:13px;color:var(--muted);margin-bottom:12px">${o.descripcion}</p>`:''}
+  <div class="cards-3" style="margin-bottom:14px">
+    <div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:11px;color:var(--muted);font-weight:700">TOTAL</div><div style="font-weight:800;font-size:18px">${fmt(o.monto_total)}</div></div>
+    <div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:11px;color:var(--muted);font-weight:700">PAGADO</div><div style="font-weight:800;font-size:18px;color:var(--green)">${fmt(pag)}</div></div>
+    <div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:11px;color:var(--muted);font-weight:700">SALDO</div><div style="font-weight:800;font-size:18px;color:${esTit?'var(--green)':'var(--red)'}">${fmt(saldo)}</div></div>
+  </div>
+  <div class="prog-wrap"><div class="prog-bar" style="width:${o.monto_total>0?Math.min(pag/o.monto_total*100,100):0}%;background:${esTit?'var(--green)':'var(--red)'}"></div></div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:16px">${o.monto_total>0?(pag/o.monto_total*100).toFixed(0):0}% pagado</div>
+  <div style="max-height:260px;overflow-y:auto">
+  <table><tr><th>#</th><th>Concepto</th><th>Esperado</th><th>Pagado</th><th>Estado</th>${esTit?'<th></th>':''}</tr>
+  ${(o.cuotas||[]).sort((a,b)=>a.numero-b.numero).map(c=>{
+    const pend=Math.max((+c.valor_esperado||0)-(+c.valor_pagado||0),0);
+    return `<tr><td>${c.numero||''}</td><td>${c.concepto}</td>
+      <td class="num">${fmt(c.valor_esperado)}</td>
+      <td class="num pos"><b>${fmt(c.valor_pagado)}</b></td>
+      <td><span class="badge ${c.estado==='pagado'?'b-green':'b-red'}">${c.estado}</span></td>
+      ${esTit?`<td>${c.estado!=='pagado'?`<button class="btn btn-forest btn-xs" onclick="regPago('${c.id}',${pend},'${id}')">Pagar</button>`:'✓'}</td>`:''}</tr>`;
+  }).join('')}
+  </table></div>
+  ${o.notas?`<div style="background:var(--amber-bg);border-radius:9px;padding:11px 13px;font-size:13px;color:var(--amber);margin-top:12px">${o.notas}</div>`:''}`);
+}
+
+function regPago(cid, sugerido, oblId){
+  openModal(`<h3>Registrar pago <span class="modal-x" onclick="closeModal()">×</span></h3>
+  <div class="form-fld"><label>Valor ($)</label><input id="pv" type="number" step="0.01" value="${sugerido.toFixed(2)}"></div>
+  <div class="form-fld"><label>Fecha</label><input id="pf" type="date" value="${hoy()}"></div>
+  <div class="form-fld"><label>Nota</label><input id="pn" placeholder="transferencia, efectivo…"></div>
+  <button class="btn btn-forest" style="width:100%" onclick="confPago('${cid}','${oblId}')">Confirmar pago</button>`);
+}
+
+async function confPago(cid, oblId){
+  const val=+$('#pv').value, f=$('#pf').value, nota=$('#pn').value;
+  if(!val) return toast('⚠ Ingresa el valor');
+  await sb.from('cuotas').update({
+    valor_pagado:val, fecha_pago:f, estado:'pagado', nota
+  }).eq('id',cid);
+  toast('Pago registrado ✓'); closeModal(); verObl(oblId, true);
+}
+
+// ══════════════════════════════════════════════════════════
+//  VISTA: AHORROS
+// ══════════════════════════════════════════════════════════
+async function rAhorros(){
+  $('#main-content').innerHTML = '<div class="empty"><div class="dot-syncing"></div></div>';
+  const { data: ahorros } = await sb.from('ahorros')
+    .select('*,aportes_ahorro(fecha,valor,nota)').eq('usuario_id',USER.id).eq('activo',true).order('created_at');
+  const totObj=(ahorros||[]).reduce((a,s)=>a+(+s.objetivo),0);
+  const totAcu=(ahorros||[]).reduce((a,s)=>a+(+s.acumulado),0);
+  $('#main-content').innerHTML = `
+  <div class="cards-3" style="margin-bottom:20px">
+    <div class="stat-card"><div class="stat-lbl">Total objetivo</div><div class="stat-val">${fmt(totObj)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">Total ahorrado</div><div class="stat-val pos">${fmt(totAcu)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">Por ahorrar</div><div class="stat-val warn">${fmt(Math.max(totObj-totAcu,0))}</div></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <h2 style="font-size:17px;font-weight:700">Objetivos de ahorro</h2>
+    <button class="btn btn-gold" onclick="modalNuevoAhorro()">＋ Nuevo objetivo</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
+    ${(ahorros||[]).length===0?'<div class="empty"><div class="empty-icon">🏦</div><p>Crea tu primer objetivo de ahorro.</p></div>':''}
+    ${(ahorros||[]).map(s=>{
+      const pct=s.objetivo>0?(+s.acumulado/+s.objetivo*100):0;
+      const falta=Math.max(+s.objetivo-+s.acumulado,0);
+      return `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-weight:700;font-size:15px">${s.nombre}</div>
+            ${s.fecha_meta?`<div style="font-size:12px;color:var(--muted)">Meta: ${ffecha(s.fecha_meta)}</div>`:''}
+          </div>
+          <span style="font-size:22px;font-weight:800;color:${s.color||'var(--green)'}">
+            ${pct>=100?'✅':pct.toFixed(0)+'%'}
+          </span>
+        </div>
+        <div class="prog-wrap" style="height:10px">
+          <div class="prog-bar" style="width:${Math.min(pct,100)}%;background:${s.color||'var(--forest3)'}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-top:8px">
+          <span class="pos"><b>${fmt(s.acumulado)}</b> ahorrado</span>
+          <span style="color:var(--muted)">${fmt(s.objetivo)} objetivo</span>
+        </div>
+        ${falta>0?`<div style="font-size:12px;color:var(--amber);margin-top:4px">Falta ${fmt(falta)}</div>`:''}
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-forest btn-sm" onclick="modalAporte('${s.id}')">＋ Abonar</button>
+          <button class="btn btn-ghost btn-sm" onclick="verAhorroDetalle('${s.id}')">Ver historial</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function modalNuevoAhorro(){
+  openModal(`<h3>Nuevo objetivo <span class="modal-x" onclick="closeModal()">×</span></h3>
+  <div class="form-fld"><label>Nombre del objetivo</label><input id="an" placeholder="Ej: Viaje, Carro, Emergencias…"></div>
+  <div class="form-2">
+    <div class="form-fld"><label>Monto objetivo ($)</label><input id="ao" type="number" step="0.01"></div>
+    <div class="form-fld"><label>Ya tengo ($)</label><input id="ai" type="number" step="0.01" value="0"></div>
+  </div>
+  <div class="form-2">
+    <div class="form-fld"><label>Fecha inicio</label><input id="af" type="date" value="${hoy()}"></div>
+    <div class="form-fld"><label>Fecha meta</label><input id="am" type="date"></div>
+  </div>
+  <div class="form-fld"><label>Color identificador</label>
+    <select id="ac">
+      <option value="#2e7d52">Verde bosque</option><option value="#c9a84c">Dorado</option>
+      <option value="#5a8a6f">Salvia</option><option value="#d64e4e">Rojo</option>
+      <option value="#3b82f6">Azul</option><option value="#8b5cf6">Violeta</option>
+    </select>
+  </div>
+  <button class="btn btn-forest" style="width:100%" onclick="guardarAhorro()">Crear objetivo</button>`);
+}
+
+async function guardarAhorro(){
+  const nom=$('#an').value.trim(), obj=+$('#ao').value, ini=+$('#ai').value;
+  if(!nom||!obj) return toast('⚠ Ingresa nombre y objetivo');
+  await sb.from('ahorros').insert({
+    usuario_id:USER.id, nombre:nom, objetivo:obj, acumulado:ini,
+    fecha_inicio:$('#af').value, fecha_meta:$('#am').value||null, color:$('#ac').value
+  });
+  toast('Objetivo creado ✓'); closeModal(); rAhorros();
+}
+
+function modalAporte(id){
+  openModal(`<h3>Registrar aporte <span class="modal-x" onclick="closeModal()">×</span></h3>
+  <div class="form-fld"><label>Valor ($)</label><input id="apv" type="number" step="0.01"></div>
+  <div class="form-fld"><label>Fecha</label><input id="apf" type="date" value="${hoy()}"></div>
+  <div class="form-fld"><label>Nota</label><input id="apn" placeholder="Opcional…"></div>
+  <button class="btn btn-forest" style="width:100%" onclick="guardarAporte('${id}')">Abonar</button>`);
+}
+
+async function guardarAporte(id){
+  const v=+$('#apv').value;
+  if(!v) return toast('⚠ Ingresa el valor');
+  await Promise.all([
+    sb.from('aportes_ahorro').insert({ahorro_id:id,valor:v,fecha:$('#apf').value,nota:$('#apn').value}),
+    sb.from('ahorros').update({acumulado:v}).eq('id',id) // necesita sumar, usaremos rpc en producción
+  ]);
+  // Update acumulado sumando
+  const {data:ah}=await sb.from('ahorros').select('acumulado').eq('id',id).single();
+  await sb.from('ahorros').update({acumulado:(+ah.acumulado)+v}).eq('id',id);
+  toast('Aporte registrado ✓'); closeModal(); rAhorros();
+}
+
+// ══════════════════════════════════════════════════════════
+//  VISTA: EXTRACTOS (estados de cuenta)
+// ══════════════════════════════════════════════════════════
+let extractoBuffer = [];
+async function rExtractos(){
+  $('#main-content').innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h2 style="font-size:17px;font-weight:700">Importar estado de cuenta</h2>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">Subir extracto bancario</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+      Soporta archivos PDF de los principales bancos ecuatorianos: <b>Banco del Pacífico (PacifiCard)</b>, <b>Diners Club</b>, <b>Discover</b> y <b>Banco Pichincha</b>. También acepta archivos Excel (.xlsx) con movimientos.
+    </p>
+    <div style="border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;background:var(--cream);cursor:pointer" onclick="$('#file-ext').click()">
+      <div style="font-size:36px;margin-bottom:8px">📄</div>
+      <div style="font-weight:600;color:var(--forest)">Haz clic para seleccionar el archivo</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:4px">.pdf · .xlsx · .xls · .csv</div>
+    </div>
+    <input type="file" id="file-ext" accept=".pdf,.xlsx,.xls,.csv" style="display:none" onchange="procesarExtracto(event)">
+  </div>
+  <div id="preview-ext" style="display:none">
+    <div class="card">
+      <div class="card-title">Vista previa <span id="ext-count" class="badge b-muted"></span></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Revisa los movimientos detectados. Selecciona los que quieres importar como gastos.</p>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <button class="btn btn-forest btn-sm" onclick="selAll(true)">Seleccionar todos</button>
+        <button class="btn btn-ghost btn-sm" onclick="selAll(false)">Deseleccionar</button>
+        <button class="btn btn-gold" style="margin-left:auto" onclick="importarExtracto()">Importar seleccionados →</button>
+      </div>
+      <div style="max-height:400px;overflow-y:auto">
+        <table id="t-preview"><tr><th style="width:36px"></th><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Valor</th><th>Categoría</th></tr></table>
+      </div>
+    </div>
+  </div>
+  <div id="ext-historial" class="card" style="margin-top:20px">
+    <div class="card-title">Extractos importados</div>
+    <div id="ext-hist-inner"><div class="empty"><div class="dot-syncing"></div></div></div>
+  </div>`;
+  cargarHistorialExtractos();
+}
+
+async function cargarHistorialExtractos(){
+  const { data } = await sb.from('extractos').select('*').eq('usuario_id',USER.id).eq('estado','registrado').order('created_at',{ascending:false}).limit(50);
+  const el = $('#ext-hist-inner');
+  if(!data||data.length===0){ el.innerHTML='<div class="empty"><p>Sin extractos importados aún.</p></div>'; return; }
+  el.innerHTML = `<div class="table-wrap"><table>
+    <tr><th>Banco</th><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Valor</th></tr>
+    ${data.map(r=>`<tr><td><span class="badge b-muted">${r.banco}</span></td>
+      <td>${r.fecha_tx?ffecha(r.fecha_tx):'—'}</td><td>${r.concepto}</td>
+      <td>${r.categoria}</td><td class="num neg">${fmt(r.valor)}</td></tr>`).join('')}
+  </table></div>`;
+}
+
+async function procesarExtracto(e){
+  const file = e.target.files[0]; if(!file) return;
+  extractoBuffer = [];
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext==='pdf') await parsePDF(file);
+  else await parseExcelExtracto(file);
+  renderPreviewExtracto();
+}
+
+async function parsePDF(file){
+  // Lectura básica de PDF como texto — funciona para PDFs digitales (no escaneados)
+  const ab = await file.arrayBuffer();
+  const bytes = new Uint8Array(ab);
+  let txt = '';
+  for(let i=0;i<bytes.length;i++){
+    const c=bytes[i];
+    if(c>=32&&c<127) txt+=String.fromCharCode(c);
+    else if(c===10||c===13) txt+='\n';
+  }
+  const banco = detectarBanco(txt);
+  const lineas = txt.split('\n').filter(l=>l.trim().length>5);
+  // Parsers específicos por banco
+  if(banco==='PacifiCard') parsearPacificard(lineas);
+  else if(banco==='Diners'||banco==='Discover') parsearDiners(lineas);
+  else if(banco==='Pichincha') parsearPichincha(lineas);
+  else parsearGenerico(lineas);
+}
+
+function detectarBanco(txt){
+  if(txt.includes('PACIFICARD')||txt.includes('PacifiCard')||txt.includes('pacifico.fin.ec')) return 'PacifiCard';
+  if(txt.includes('DINERS CLUB')||txt.includes('dinersclub.com.ec')) return 'Diners';
+  if(txt.includes('DISCOVER')||txt.includes('discover.ec')) return 'Discover';
+  if(txt.includes('BANCO PICHINCHA')||txt.includes('pichincha.com')) return 'Pichincha';
+  return 'Desconocido';
+}
+
+// Parser PacifiCard: formato FECHA REFER DESCRIPCIÓN TIPO VALOR
+function parsearPacificard(lineas){
+  const meses={ENE:1,FEB:2,MAR:3,ABR:4,MAY:5,JUN:6,JUL:7,AGO:8,SEP:9,OCT:10,NOV:11,DIC:12};
+  const reMonto = /(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*[+\-]?\s*$/;
+  for(let i=0;i<lineas.length;i++){
+    const l=lineas[i].trim();
+    // Líneas de transacción: inician con MES/DIA
+    const mFecha = l.match(/^([A-Z]{3})\/(\d{1,2})\s+(\d+)\s+(.+?)\s+(CONS|DIF|PAGO|N\/D|AV)\s+([\d.,]+)/);
+    if(mFecha){
+      const [,mes,dia,,desc,tipo,val]=mFecha;
+      const mesN=meses[mes]||MES_ACT;
+      const v=parseFloat(val.replace(/[.,](?=\d{3})/g,'').replace(',','.'));
+      if(v>0 && tipo!=='PAGO'){
+        extractoBuffer.push({
+          banco:'PacifiCard', fecha_tx:`${ANIO_ACT}-${String(mesN).padStart(2,'0')}-${String(dia).padStart(2,'0')}`,
+          concepto:desc.trim(), tipo_op:tipo, valor:v, categoria:categorizarAuto(desc)
+        });
+      }
+    }
+  }
+}
+
+// Parser Diners/Discover
+function parsearDiners(lineas){
+  const reFecha=/^(\d{2})\/(\d{2})/;
+  const reMonto=/(\d{1,3}(?:,\d{3})*[.,]\d{2})\s*$/;
+  for(const l of lineas){
+    const mF=l.match(reFecha), mV=l.match(reMonto);
+    if(mF&&mV){
+      const desc=l.replace(reFecha,'').replace(reMonto,'').replace(/\(\d+\/\d+\)/,'').trim();
+      const v=parseFloat(mV[1].replace(/,(?=\d{3})/g,'').replace(',','.'));
+      if(v>0&&desc.length>2&&!l.includes('PAGO')&&!l.includes('MUCHAS GRACIAS')){
+        extractoBuffer.push({
+          banco:'Diners', fecha_tx:`${ANIO_ACT}-${mF[2]}-${mF[1]}`,
+          concepto:desc, tipo_op:'CONS', valor:v, categoria:categorizarAuto(desc)
+        });
+      }
+    }
+  }
+}
+
+// Parser Pichincha
+function parsearPichincha(lineas){
+  for(const l of lineas){
+    const m=l.match(/^(\d{2})\/(\d{2})\s+\d+\s+(.+?)\s+(DIFERIDO|CONSUMO)\s+(?:EC\s+|US\s+)?(\d+[.,]\d{2})/);
+    if(m){
+      const [,dd,mm,desc,tipo,val]=m;
+      const v=parseFloat(val.replace(',','.'));
+      if(v>0){
+        extractoBuffer.push({
+          banco:'Pichincha', fecha_tx:`${ANIO_ACT}-${mm}-${dd}`,
+          concepto:desc.trim(), tipo_op:tipo, valor:v, categoria:categorizarAuto(desc)
+        });
+      }
+    }
+  }
+}
+
+function parsearGenerico(lineas){
+  const reValor=/(\d{1,4}[.,]\d{2})/;
+  for(const l of lineas){
+    const m=l.match(reValor);
+    if(m){
+      const v=parseFloat(m[1].replace(',','.'));
+      if(v>0.5&&v<100000){
+        extractoBuffer.push({
+          banco:'Desconocido', fecha_tx:null, concepto:l.slice(0,60).trim(),
+          tipo_op:'', valor:v, categoria:'Sin categoría'
+        });
+      }
+    }
+  }
+}
+
+async function parseExcelExtracto(file){
+  // SheetJS no está cargado en esta versión — indicar al usuario
+  toast('⚠ Para Excel, exporta como PDF o CSV desde tu banco', 4000);
+}
+
+const CATS = {
+  UBER:'Transporte', TAXI:'Transporte', GASOLINERA:'Transporte', EDS:'Transporte', FUEL:'Transporte',
+  NETFLIX:'Suscripciones', SPOTIFY:'Suscripciones', AMAZON:'Suscripciones', CRUNCHYROLL:'Suscripciones', YOUTUBE:'Suscripciones', APPLE:'Suscripciones',
+  METROCAR:'Vehículo', TALLER:'Vehículo', LLANTAS:'Vehículo',
+  MERCADO:'Alimentación', D1:'Alimentación', SUPERMAXI:'Alimentación', DOMICILIO:'Alimentación', RESTAURANTE:'Alimentación', MCDONALDS:'Alimentación',
+  CLINICA:'Salud', FARMACIA:'Salud', MEDICO:'Salud', HOSPITAL:'Salud',
+  COLEGIO:'Educación', UDLA:'Educación', UNIVERSIDAD:'Educación', MAESTRIA:'Educación',
+  GYM:'Deportes', SMARTFIT:'Deportes',
+  MUNICIPIO:'Servicios', SERVICIO:'Servicios', INTERNET:'Servicios',
+};
+function categorizarAuto(concepto){
+  const up=concepto.toUpperCase();
+  for(const [k,v] of Object.entries(CATS)) if(up.includes(k)) return v;
+  return 'Otro';
+}
+
+function renderPreviewExtracto(){
+  const tabla=$('#t-preview'); if(!tabla) return;
+  if(extractoBuffer.length===0){
+    $('#preview-ext').style.display='none';
+    return toast('⚠ No se detectaron transacciones en el archivo', 3000);
+  }
+  $('#ext-count').textContent=extractoBuffer.length+' movimientos';
+  const cats=['Sin categoría','Hogar','Alimentación','Transporte','Salud','Educación','Entretenimiento','Suscripciones','Vehículo','Deportes','Servicios','Deudas','Otro'];
+  tabla.innerHTML=`<tr><th style="width:36px"></th><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Valor</th><th>Categoría</th></tr>
+  ${extractoBuffer.map((r,i)=>`<tr>
+    <td><input type="checkbox" id="ck${i}" checked></td>
+    <td style="font-size:12px">${r.fecha_tx?ffecha(r.fecha_tx):'—'}</td>
+    <td><div style="font-size:13px;font-weight:600">${r.concepto.slice(0,50)}</div><div style="font-size:11px;color:var(--muted)">${r.banco}</div></td>
+    <td><span class="badge b-muted" style="font-size:10px">${r.tipo_op||'—'}</span></td>
+    <td class="num neg"><b>${fmt(r.valor)}</b></td>
+    <td><select id="cat${i}" style="font-size:12px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;background:var(--cream)">
+      ${cats.map(c=>`<option ${c===r.categoria?'selected':''}>${c}</option>`).join('')}
+    </select></td>
+  </tr>`).join('')}`;
+  $('#preview-ext').style.display='block';
+}
+
+function selAll(v){ extractoBuffer.forEach((_,i)=>{ const ck=$(`#ck${i}`); if(ck) ck.checked=v; }) }
+
+async function importarExtracto(){
+  const sel=[]; const uid=USER.id;
+  extractoBuffer.forEach((r,i)=>{
+    const ck=$(`#ck${i}`), cat=$(`#cat${i}`);
+    if(ck?.checked) sel.push({...r, usuario_id:uid, estado:'registrado', categoria:cat?cat.value:r.categoria,
+      mes_periodo:MES_ACT, anio_periodo:ANIO_ACT});
+  });
+  if(!sel.length) return toast('⚠ Selecciona al menos un movimiento');
+  const {error}=await sb.from('extractos').insert(sel);
+  if(error) return toast('Error al importar: '+error.message);
+  // También los agrega como gastos del mes actual
+  const gastos=sel.map(r=>({
+    usuario_id:uid, anio:ANIO_ACT, mes:MES_ACT,
+    fecha:r.fecha_tx, concepto:r.concepto, valor:r.valor,
+    categoria:r.categoria, naturaleza:'Necesidades',
+    tipo:'variable', fuente:'importado', banco_origen:r.banco
+  }));
+  await sb.from('gastos').insert(gastos);
+  toast(`✓ ${sel.length} movimientos importados como gastos del mes`);
+  $('#preview-ext').style.display='none';
+  extractoBuffer=[];
+  cargarHistorialExtractos();
+}
+
+// ══════════════════════════════════════════════════════════
+//  VISTA: BOLA DE NIEVE
+// ══════════════════════════════════════════════════════════
+async function rNieve(){
+  $('#main-content').innerHTML = '<div class="empty"><div class="dot-syncing"></div></div>';
+  const uid=USER.id;
+  const {data:obls}=await sb.from('obligaciones')
+    .select('*,cuotas(valor_pagado,estado)').eq('deudor_id',uid).eq('estado','activa');
+  // Calcular saldo real por obligación
+  const deudas=(obls||[]).map(o=>{
+    const pag=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
+    return {...o, saldo:+o.monto_total-pag, cuota_mensual:+o.valor_cuota||Math.ceil((+o.monto_total-pag)/12)};
+  }).filter(d=>d.saldo>0).sort((a,b)=>a.saldo-b.saldo);
+
+  $('#main-content').innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h2 style="font-size:17px;font-weight:700">Plan Bola de Nieve</h2>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">Configurar aceleración</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">El método Bola de Nieve paga primero las deudas más pequeñas. Al cerrar cada una, su cuota se transfiere a la siguiente. Agrega un aporte extra para acelerar el proceso.</p>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <label style="font-size:12px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px">APORTE EXTRA MENSUAL ($)</label>
+        <input type="number" id="extra-snow" value="50" min="0" step="10" style="width:100%;border:1.5px solid var(--border);border-radius:9px;padding:10px 13px;font-size:15px;font-family:inherit;background:var(--cream)">
+      </div>
+      <button class="btn btn-forest" style="margin-top:20px" onclick="calcNieve()">Calcular plan</button>
+    </div>
+  </div>
+  <div id="nieve-resultado">
+    ${deudas.length===0?`<div class="empty"><div class="empty-icon">🎉</div><p>No tienes deudas activas registradas en la plataforma.<br>¡Excelente posición!</p></div>`:
+    `<div class="card">
+      <div class="card-title">Tus deudas ordenadas (menor a mayor saldo)</div>
+      <div class="table-wrap"><table>
+        <tr><th>Orden</th><th>Deuda</th><th>Saldo</th><th>Cuota</th><th>Sin extra</th><th>Con bola de nieve</th></tr>
+        ${deudas.map((d,i)=>{
+          const mN=d.cuota_mensual>0?Math.ceil(d.saldo/d.cuota_mensual):99;
+          return `<tr><td><span class="badge b-muted">${i+1}</span></td>
+            <td><b>${d.nombre}</b></td>
+            <td class="num neg">${fmt(d.saldo)}</td>
+            <td class="num">${fmt(d.cuota_mensual)}</td>
+            <td><span class="badge b-red">${mN>=99?'+99':mN} meses</span></td>
+            <td id="nieve-m${i}"><span class="badge b-muted">Calcula →</span></td>
+          </tr>`;
+        }).join('')}
+      </table></div>
+    </div>`}
+  </div>`;
+  if(deudas.length>0) window._nieves=deudas;
+}
+
+function calcNieve(){
+  const extra=+$('#extra-snow').value||0;
+  const deudas=window._nieves; if(!deudas) return;
+  let acum=extra;
+  deudas.forEach((d,i)=>{
+    const ct=d.cuota_mensual+acum;
+    const m=ct>0?Math.ceil(d.saldo/ct):99;
+    acum+=d.cuota_mensual; // al pagar esta deuda, su cuota va a la siguiente
+    const el=$(`#nieve-m${i}`);
+    if(el) el.innerHTML=`<span class="badge b-green">${m>=99?'+99':m} meses</span>`;
+  });
+  toast('Plan calculado ✓');
+}
+</script>
+</body>
+</html>
