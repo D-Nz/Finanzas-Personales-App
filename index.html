@@ -225,6 +225,7 @@ async function reset(){const e=prompt('Ingresa tu correo:');if(e){await SB.auth.
 async function logout(){await SB.auth.signOut()}
 
 SB.auth.onAuthStateChange(async(ev,sess)=>{
+  const blg=$('#blg');if(blg&&blg.disabled){blg.disabled=false;blg.textContent='Ingresar a mi cuenta'}
   if(sess?.user){
     U=sess.user;
     const{data}=await SB.from('perfiles').select('*').eq('id',U.id).single();
@@ -234,7 +235,11 @@ SB.auth.onAuthStateChange(async(ev,sess)=>{
     const nm=P?.nombre||U.email.split('@')[0];
     $('#hun').textContent=nm;$('#hav').textContent=nm.charAt(0).toUpperCase();
     rv();
-  }else{U=null;P=null;$('#auth-screen').style.display='flex';$('#app-screen').style.display='none'}
+  }else{
+    U=null;P=null;
+    $('#auth-screen').style.display='flex';
+    $('#app-screen').style.display='none';
+  }
 });
 
 function nav(btn){$$('.nb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');V=btn.dataset.v;rv()}
@@ -377,13 +382,14 @@ async function rO(){
   let pm={};
   if(pids.length){const{data:ps}=await SB.from('perfiles').select('id,nombre,apellido').in('id',pids);pm=Object.fromEntries((ps||[]).map(p=>[p.id,(p.nombre||'')+(p.apellido?' '+p.apellido:'')]))}
   const act=(obls||[]).filter(o=>o.estado==='activa');
-  const meDeben=act.filter(o=>o.titular_id===uid&&o.deudor_id!==uid);
+  // titular===deudor===uid: registro personal (solo yo) → se muestra como "me deben" (deuda de tercero registrada sin cuenta)
+  const meDeben=act.filter(o=>o.titular_id===uid&&(o.deudor_id!==uid||o.deudor_id===uid));
   const leDebo=act.filter(o=>o.deudor_id===uid&&o.titular_id!==uid);
   const cerr=(obls||[]).filter(o=>o.estado!=='activa');
   function oCard(o,eT){
     const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
     const sal=Math.max(+o.monto_total-p,0);const pct=+o.monto_total>0?(p/+o.monto_total*100):0;
-    const otra=eT?pm[o.deudor_id]:pm[o.titular_id];const col=eT?'var(--green)':'var(--red)';
+    const otra=eT?(pm[o.deudor_id]||o.notas?.match(/Deudor: ([^\n|]+)/)?.[1]?.trim()||'—'):(pm[o.titular_id]||'—');const col=eT?'var(--green)':'var(--red)';
     return `<div class="card" style="margin-bottom:12px;cursor:pointer;border-left:4px solid ${col}" onclick="vObl('${o.id}',${eT})">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div><div style="font-weight:700;font-size:15px">${o.nombre}</div>
