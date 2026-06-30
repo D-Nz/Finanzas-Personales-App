@@ -103,6 +103,16 @@ tr.hv:hover{background:var(--cream)}
 .toast.on{opacity:1}
 .empty{text-align:center;padding:40px 20px;color:var(--muted)}
 .chart-wrap{position:relative;height:220px}
+.chart-card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);padding:24px;position:relative;overflow:hidden}
+.chart-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--forest),var(--gold))}
+.chart-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.chart-card-title{font-size:15px;font-weight:700;color:var(--forest);letter-spacing:-.2px}
+.chart-card-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.chart-legend{display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.legend-item{display:flex;align-items:center;gap:9px;font-size:12.5px}
+.legend-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.legend-label{flex:1;color:var(--text);font-weight:500}
+.legend-pct{color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
 .part-row{display:flex;align-items:center;gap:8px;background:var(--cream);border-radius:9px;padding:9px 11px;margin-bottom:6px}
 .part-row input{flex:1;border:1.5px solid var(--border);border-radius:7px;padding:6px 10px;font-size:13px;font-family:inherit;background:#fff}
 .obl-card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);padding:18px;margin-bottom:12px;cursor:pointer;animation:fadein .3s ease;border-left:4px solid var(--sage)}
@@ -178,6 +188,16 @@ function toast(m,d=2400){const t=$('#toast');t.textContent=m;t.classList.add('on
 function openM(h){$('#mbox').innerHTML=h;$('#mbg').classList.add('on')}
 function closeM(){$('#mbg').classList.remove('on')}
 $('#mbg').addEventListener('click',e=>{if(e.target.id==='mbg')closeM()});
+
+// Delegación de eventos global para tarjetas de obligación (evita problemas de comillas en onclick inline)
+document.addEventListener('click', e=>{
+  const card = e.target.closest('[data-oblid]');
+  if(card){
+    const id = card.getAttribute('data-oblid');
+    const esMio = card.getAttribute('data-esmio') === 'true';
+    vObl(id, esMio);
+  }
+});
 
 function swTab(t){
   $$('.atab').forEach((b,i)=>b.classList.toggle('on',i===(t==='l'?0:1)));
@@ -264,6 +284,8 @@ async function rR(){
     gasMes.push((gg||[]).reduce((a,r)=>a+(+r.valor),0));
   }
 
+  const hayDatos = catLabels.length>0 || ingMes.some(v=>v>0) || gasMes.some(v=>v>0);
+
   $('#main').innerHTML=`
   <div style="font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-bottom:14px">${mesN(MES)} ${ANIO}</div>
   <div class="g3">
@@ -274,12 +296,23 @@ async function rR(){
     <div class="sc"><div class="sl">Posición neta</div><div class="sv ${meDeben-leDebo>=0?'pos':'neg'}">${fmt(meDeben-leDebo)}</div></div>
   </div>
   <div class="g2" style="margin-bottom:20px">
-    <div class="card">
-      <div class="ctit">Gastos por categoría</div>
-      ${catLabels.length?`<div class="chart-wrap"><canvas id="chartPie"></canvas></div>`:'<div class="empty"><p>Sin gastos registrados este mes.</p></div>'}
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <div>
+          <div class="chart-card-title">Distribución de gastos</div>
+          <div class="chart-card-sub">Por categoría · ${mesN(MES)} ${ANIO}</div>
+        </div>
+      </div>
+      ${catLabels.length?`<div class="chart-wrap"><canvas id="chartPie"></canvas></div>
+      <div id="pie-legend" class="chart-legend"></div>`:'<div class="empty"><p>Sin gastos registrados este mes.<br>Los datos aparecerán aquí automáticamente.</p></div>'}
     </div>
-    <div class="card">
-      <div class="ctit">Ingresos vs Gastos (6 meses)</div>
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <div>
+          <div class="chart-card-title">Flujo de caja</div>
+          <div class="chart-card-sub">Ingresos vs gastos · últimos 6 meses</div>
+        </div>
+      </div>
       <div class="chart-wrap"><canvas id="chartBar"></canvas></div>
     </div>
   </div>
@@ -297,24 +330,90 @@ async function rR(){
       <td class="num ${esMio?'pos':'neg'}">${fmt(s)}</td></tr>`;
   }).join('')}</table></div></div>`:''}`;
 
-  // Renderizar gráficas — usar setTimeout para asegurar que el DOM esté listo
-  setTimeout(()=>{
-    if(catLabels.length){
-      const ctx=$('#chartPie')?.getContext('2d');
-      if(ctx){
-        if(chartPie){try{chartPie.destroy()}catch(e){}}
-        chartPie=new Chart(ctx,{type:'doughnut',data:{labels:catLabels,datasets:[{data:catVals,backgroundColor:catColors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12}}},cutout:'65%',animation:{duration:600}}});
+  // Renderizar gráficas — esperar a que Chart.js esté disponible y el DOM listo
+  function dibujarGraficas(intentos){
+    intentos = intentos || 0;
+    if(typeof Chart==='undefined'){
+      if(intentos<20){setTimeout(()=>dibujarGraficas(intentos+1),150);return}
+      console.error('Chart.js no se cargó después de 20 intentos');
+      return;
+    }
+    const elPie=document.getElementById('chartPie');
+    const elBar=document.getElementById('chartBar');
+
+    // Paleta profesional: tonos tierra/bosque coordinados con la marca
+    const PALETTE=['#1a3a2a','#2e6347','#c9a84c','#5a8a6f','#8a6d3b','#a8d5b5','#b87c1a','#6b7f72'];
+
+    if(catLabels.length && elPie){
+      const ctx=elPie.getContext('2d');
+      if(chartPie){try{chartPie.destroy()}catch(e){}}
+      chartPie=new Chart(ctx,{
+        type:'doughnut',
+        data:{labels:catLabels,datasets:[{
+          data:catVals,
+          backgroundColor:PALETTE,
+          borderWidth:3,
+          borderColor:'#ffffff',
+          hoverOffset:8
+        }]},
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          cutout:'70%',
+          plugins:{
+            legend:{display:false},
+            tooltip:{
+              backgroundColor:'#1a3a2a',padding:12,cornerRadius:10,
+              titleFont:{size:13,weight:'700'},bodyFont:{size:12.5},
+              callbacks:{label:ctx=>' '+ctx.label+': $'+ctx.parsed.toLocaleString('es-EC',{minimumFractionDigits:2})}
+            }
+          },
+          animation:{duration:700,easing:'easeOutQuart'}
+        }
+      });
+      // Leyenda custom
+      const totalCat=catVals.reduce((a,v)=>a+v,0);
+      const legEl=document.getElementById('pie-legend');
+      if(legEl){
+        legEl.innerHTML=catLabels.map((l,i)=>{
+          const pct=totalCat>0?(catVals[i]/totalCat*100).toFixed(0):0;
+          return '<div class="legend-item"><span class="legend-dot" style="background:'+PALETTE[i%PALETTE.length]+'"></span>'
+            +'<span class="legend-label">'+l+'</span><span class="legend-pct">'+pct+'%</span></div>';
+        }).join('');
       }
     }
-    const ctx2=$('#chartBar')?.getContext('2d');
-    if(ctx2){
+
+    if(elBar){
+      const ctx2=elBar.getContext('2d');
       if(chartBar){try{chartBar.destroy()}catch(e){}}
-      chartBar=new Chart(ctx2,{type:'bar',data:{labels:meses6,datasets:[
-        {label:'Ingresos',data:ingMes,backgroundColor:'rgba(46,125,82,.7)',borderRadius:6},
-        {label:'Gastos',data:gasMes,backgroundColor:'rgba(214,78,78,.7)',borderRadius:6}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(0,0,0,.05)'}},x:{grid:{display:false}}},animation:{duration:600}}});
+      const gradIng=ctx2.createLinearGradient(0,0,0,220);
+      gradIng.addColorStop(0,'rgba(46,99,71,0.9)');
+      gradIng.addColorStop(1,'rgba(46,99,71,0.5)');
+      const gradGas=ctx2.createLinearGradient(0,0,0,220);
+      gradGas.addColorStop(0,'rgba(201,168,76,0.9)');
+      gradGas.addColorStop(1,'rgba(201,168,76,0.4)');
+      chartBar=new Chart(ctx2,{
+        type:'bar',
+        data:{labels:meses6,datasets:[
+          {label:'Ingresos',data:ingMes,backgroundColor:gradIng,borderRadius:8,borderSkipped:false,maxBarThickness:28},
+          {label:'Gastos',data:gasMes,backgroundColor:gradGas,borderRadius:8,borderSkipped:false,maxBarThickness:28}
+        ]},
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          plugins:{
+            legend:{position:'top',align:'end',labels:{font:{size:11,weight:'600'},boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',padding:16}},
+            tooltip:{backgroundColor:'#1a3a2a',padding:12,cornerRadius:10,titleFont:{size:12,weight:'700'},bodyFont:{size:12},
+              callbacks:{label:ctx=>' '+ctx.dataset.label+': $'+ctx.parsed.y.toLocaleString('es-EC',{minimumFractionDigits:2})}}
+          },
+          scales:{
+            y:{ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:10.5},color:'#6b7f72'},grid:{color:'rgba(26,58,42,.06)'},border:{display:false}},
+            x:{ticks:{font:{size:11,weight:'600'},color:'#6b7f72'},grid:{display:false},border:{display:false}}
+          },
+          animation:{duration:700,easing:'easeOutQuart'}
+        }
+      });
     }
-  },100);
+  }
+  setTimeout(()=>dibujarGraficas(0),50);
 }
 
 // ── PRESUPUESTO ────────────────────────────────────────────────────
@@ -432,37 +531,49 @@ async function rO(){
   }
 
   function oblCard(o,esMio){
-    const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
+    const p=(o.cuotas||[]).filter(c=>c.estado==="pagado").reduce((s,c)=>s+(+c.valor_pagado),0);
     const sal=Math.max(+o.monto_total-p,0);const pct=+o.monto_total>0?(p/+o.monto_total*100):0;
     const persona=getPersona(o,esMio);
-    const col=esMio?'var(--green)':'var(--red)';
-    const segCol=SEGCOL[o.segmento||'']||'var(--sage)';
-    return `<div class='obl-card ${esMio?"md":"ld"}' onclick='vObl("${o.id}",${esMio})'>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-weight:700;font-size:15px">${o.nombre}</span>
-            ${o.es_grupal?'<span class="badge bb" style="font-size:9px">GRUPAL</span>':''}
-          </div>
-          <div style="font-size:12px;color:var(--muted)">${esMio?'← '+persona+' te debe':'→ Le debes a '+persona}</div>
-          <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
-            <span class="badge bm" style="font-size:10px;border-left:3px solid ${segCol}">${o.segmento||'—'}</span>
-          </div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:22px;font-weight:800;color:${col}">${fmt(sal)}</div>
-          <div style="font-size:11px;color:var(--muted)">pendiente</div>
-        </div>
-      </div>
-      <div class="pw"><div class="pb" style="width:${Math.min(pct,100)}%;background:${col}"></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
-        <span>Pagado ${fmt(p)} de ${fmt(+o.monto_total)}</span><span>${pct.toFixed(0)}%</span>
-      </div>
-    </div>`;
+    const col=esMio?"var(--green)":"var(--red)";
+    const segCol=SEGCOL[o.segmento||""]||"var(--sage)";
+    const cardClass=esMio?"md":"ld";
+    return "<div class=\"obl-card "+cardClass+"\" data-oblid=\""+o.id+"\" data-esmio=\""+esMio+"\">"
+      +"<div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:10px\">"
+        +"<div style=\"flex:1\">"
+          +"<div style=\"display:flex;align-items:center;gap:8px;margin-bottom:4px\">"
+            +"<span style=\"font-weight:700;font-size:15px\">"+o.nombre+"</span>"
+            +(o.es_grupal?"<span class=\"badge bb\" style=\"font-size:9px\">GRUPAL</span>":"")
+          +"</div>"
+          +"<div style=\"font-size:12px;color:var(--muted)\">"+(esMio?"← "+persona+" te debe":"→ Le debes a "+persona)+"</div>"
+          +"<div style=\"margin-top:4px;display:flex;gap:6px;flex-wrap:wrap\">"
+            +"<span class=\"badge bm\" style=\"font-size:10px;border-left:3px solid "+segCol+"\">"+(o.segmento||"—")+"</span>"
+          +"</div>"
+        +"</div>"
+        +"<div style=\"text-align:right;flex-shrink:0\">"
+          +"<div style=\"font-size:22px;font-weight:800;color:"+col+"\">"+fmt(sal)+"</div>"
+          +"<div style=\"font-size:11px;color:var(--muted)\">pendiente</div>"
+        +"</div>"
+      +"</div>"
+      +"<div class=\"pw\"><div class=\"pb\" style=\"width:"+Math.min(pct,100)+"%;background:"+col+"\"></div></div>"
+      +"<div style=\"display:flex;justify-content:space-between;font-size:12px;color:var(--muted)\">"
+        +"<span>Pagado "+fmt(p)+" de "+fmt(+o.monto_total)+"</span><span>"+pct.toFixed(0)+"%</span>"
+      +"</div>"
+    +"</div>";
   }
 
   const tMD=meDeben.reduce((a,o)=>{const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);return a+Math.max(+o.monto_total-p,0)},0);
   const tLD=leDebo.reduce((a,o)=>{const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);return a+Math.max(+o.monto_total-p,0)},0);
+
+  // Agrupar "Me deben" por persona responsable (deudor_nombre)
+  const porPersona={};
+  meDeben.forEach(o=>{
+    const nom=o.deudor_nombre||'Sin asignar';
+    if(!porPersona[nom])porPersona[nom]={obls:[],saldo:0};
+    const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
+    porPersona[nom].obls.push(o);
+    porPersona[nom].saldo+=Math.max(+o.monto_total-p,0);
+  });
+  const personas=Object.keys(porPersona).sort((a,b)=>porPersona[b].saldo-porPersona[a].saldo);
 
   $('#main').innerHTML=`
   <div class="g3" style="margin-bottom:16px">
@@ -479,6 +590,45 @@ async function rO(){
       <button class="btn bgh sm" onclick="mNOblG()">＋ Grupal</button>
     </div>
   </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <button class="btn ${vistaObl==='lista'?'bfo':'bgh'} sm" onclick="vistaObl='lista';rO()">📋 Lista</button>
+    <button class="btn ${vistaObl==='persona'?'bfo':'bgh'} sm" onclick="vistaObl='persona';rO()">👥 Por persona</button>
+  </div>
+
+  ${vistaObl==='persona'?`
+  <div style="margin-bottom:24px">
+    <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.8px;text-transform:uppercase;margin-bottom:14px">RESUMEN POR RESPONSABLE</div>
+    ${!personas.length?'<div class="empty"><p>Sin obligaciones en esta categoría.</p></div>':`
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
+      ${personas.map(nom=>{
+        const grp=porPersona[nom];
+        const inicial=nom.charAt(0).toUpperCase();
+        return `<div class="card">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:38px;height:38px;border-radius:50%;background:var(--forest);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px">${inicial}</div>
+            <div>
+              <div style="font-weight:700;font-size:15px">${nom}</div>
+              <div style="font-size:11px;color:var(--muted)">${grp.obls.length} obligación(es)</div>
+            </div>
+            <div style="margin-left:auto;text-align:right">
+              <div style="font-size:18px;font-weight:800;color:var(--green)">${fmt(grp.saldo)}</div>
+              <div style="font-size:10px;color:var(--muted)">pendiente</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${grp.obls.map(o=>{
+              const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
+              const s=Math.max(+o.monto_total-p,0);
+              return `<div data-oblid="${o.id}" data-esmio="true" style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--cream);border-radius:8px;cursor:pointer;font-size:13px">
+                <span>${o.nombre}</span><b class="neg">${fmt(s)}</b>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`}
+  </div>`:`
   <div class="g2">
     <div>
       <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px">← Me deben (${meDeben.length})</div>
@@ -488,7 +638,7 @@ async function rO(){
       <div style="font-size:11px;font-weight:700;color:var(--red);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px">→ Le debo (${leDebo.length})</div>
       ${!leDebo.length?'<div class="empty"><p>Sin deudas en esta categoría.</p></div>':leDebo.map(o=>oblCard(o,false)).join('')}
     </div>
-  </div>
+  </div>`}
   ${cerr.length?`<details style="margin-top:20px"><summary style="cursor:pointer;font-size:13px;color:var(--muted);font-weight:600">Ver ${cerr.length} cerrada(s)</summary>
   <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">${cerr.map(o=>oblCard(o,o.titular_id===uid)).join('')}</div></details>`:''}`;
 }
@@ -583,49 +733,109 @@ async function savOblG(){
   toast('Obligación grupal creada ✓');closeM();rO();
 }
 
+let CURRENT_OBL=null, CURRENT_CUOTAS=[], CURRENT_PARTIC=[];
+
 async function vObl(id,esMio){
   const{data:o}=await SB.from('obligaciones').select('*,cuotas(*)').eq('id',id).single();
-  const{data:partic}=await SB.from('participantes_obligacion').select('*').eq('obligacion_id',id).catch(()=>({data:[]}));
+  let partic=[];
+  try{const r=await SB.from('participantes_obligacion').select('*').eq('obligacion_id',id);partic=r.data||[]}catch(e){}
+  CURRENT_OBL={...o,esMio};
+  CURRENT_CUOTAS=o.cuotas||[];
+  CURRENT_PARTIC=partic;
+
   const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
-  const sal=Math.max(+o.monto_total-p,0);const col=esMio?'var(--green)':'var(--red)';
+  const sal=Math.max(+o.monto_total-p,0);
+  const col=esMio?'var(--green)':'var(--red)';
   const segCol=SEGCOL[o.segmento||'']||'var(--sage)';
-  openM(`<h3>${o.nombre} <span class="mx" onclick="closeM()">×</span></h3>
-  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-    <span class="badge ${esMio?'bg':'br'}">${esMio?'Me deben':'Le debo'}</span>
-    <span class="badge bm" style="border-left:3px solid ${segCol}">${o.segmento||'—'}</span>
-    <span class="badge bm">${o.estado}</span>
-    ${o.es_grupal?'<span class="badge bb">GRUPAL</span>':''}
-  </div>
-  ${o.deudor_nombre?`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">👤 ${o.deudor_nombre}</div>`:''}
-  <div class="g3" style="margin-bottom:12px">
-    <div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:10px;font-weight:700;color:var(--muted)">TOTAL</div><div style="font-weight:800;font-size:18px">${fmt(+o.monto_total)}</div></div>
-    <div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:10px;font-weight:700;color:var(--muted)">PAGADO</div><div style="font-weight:800;font-size:18px;color:var(--green)">${fmt(p)}</div></div>
-    <div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:10px;font-weight:700;color:var(--muted)">SALDO</div><div style="font-weight:800;font-size:18px;color:${col}">${fmt(sal)}</div></div>
-  </div>
-  <div class="pw"><div class="pb" style="width:${+o.monto_total>0?Math.min(p/+o.monto_total*100,100):0}%;background:${col}"></div></div>
-  ${o.es_grupal&&partic?.length?`<div style="margin:12px 0">
-    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">PARTICIPANTES</div>
-    <div class="tw"><table><tr><th>Nombre</th><th>Email</th><th>Cuota/mes</th></tr>
-    ${partic.map(pt=>`<tr><td>${pt.nombre}</td><td style="font-size:12px;color:var(--muted)">${pt.email||'—'}</td><td class="num">${fmt(pt.cuota_mensual)}</td></tr>`).join('')}
-    </table></div>
-  </div>`:''}
-  ${o.notas?`<div style="background:var(--amber-bg);border-radius:9px;padding:10px 13px;font-size:13px;color:var(--amber);margin-bottom:14px;white-space:pre-line">${o.notas}</div>`:''}
-  <div style="max-height:260px;overflow-y:auto;margin-bottom:14px">
-  <table><tr><th>#</th><th>Concepto</th><th>F. prog.</th><th>Esperado</th><th>Pagado</th><th>Estado</th>${esMio?'<th></th>':''}</tr>
-  ${(o.cuotas||[]).sort((a,b)=>a.numero-b.numero).map(c=>{
+  const pctPag=+o.monto_total>0?Math.min(p/+o.monto_total*100,100):0;
+
+  let h='';
+  h+='<h3>'+o.nombre+' <span class="mx" data-action="close-modal">\u00d7</span></h3>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">';
+  h+='<span class="badge '+(esMio?'bg':'br')+'">'+(esMio?'Me deben':'Le debo')+'</span>';
+  h+='<span class="badge bm" style="border-left:3px solid '+segCol+'">'+(o.segmento||'\u2014')+'</span>';
+  h+='<span class="badge bm">'+o.estado+'</span>';
+  if(o.es_grupal) h+='<span class="badge bb">GRUPAL</span>';
+  h+='</div>';
+
+  if(o.descripcion) h+='<p style="font-size:13px;color:var(--muted);margin-bottom:10px">'+o.descripcion+'</p>';
+
+  h+='<div class="g3" style="margin-bottom:12px">';
+  h+='<div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:10px;font-weight:700;color:var(--muted)">TOTAL</div><div style="font-weight:800;font-size:18px">'+fmt(+o.monto_total)+'</div></div>';
+  h+='<div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:10px;font-weight:700;color:var(--muted)">PAGADO</div><div style="font-weight:800;font-size:18px;color:var(--green)">'+fmt(p)+'</div></div>';
+  h+='<div style="background:var(--cream);border-radius:10px;padding:13px"><div style="font-size:10px;font-weight:700;color:var(--muted)">SALDO</div><div style="font-weight:800;font-size:18px;color:'+col+'">'+fmt(sal)+'</div></div>';
+  h+='</div>';
+  h+='<div class="pw"><div class="pb" style="width:'+pctPag+'%;background:'+col+'"></div></div>';
+  h+='<div style="font-size:12px;color:var(--muted);margin-bottom:14px">'+pctPag.toFixed(0)+'% pagado del total</div>';
+
+  // Participantes (créditos grupales)
+  if(o.es_grupal && partic.length){
+    const totalCuotaMensual = partic.reduce((a,pt)=>a+(+pt.cuota_mensual||0),0);
+    h+='<div style="margin-bottom:16px">';
+    h+='<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.4px;text-transform:uppercase">PARTICIPANTES Y RESPONSABLES DE PAGO</div>';
+    h+='<div class="tw"><table><tr><th>Nombre</th><th>Email</th><th>Cuota mensual</th><th>% del total</th></tr>';
+    partic.forEach(pt=>{
+      const pctP = totalCuotaMensual>0 ? ((+pt.cuota_mensual/totalCuotaMensual)*100).toFixed(1) : '0';
+      h+='<tr><td><b>'+pt.nombre+'</b></td><td style="font-size:12px;color:var(--muted)">'+(pt.email||'\u2014')+'</td>';
+      h+='<td class="num">'+fmt(pt.cuota_mensual)+'</td><td class="num" style="color:var(--muted)">'+pctP+'%</td></tr>';
+    });
+    h+='<tr style="font-weight:700;background:var(--cream)"><td colspan="2">Total cuota mensual</td><td class="num">'+fmt(totalCuotaMensual)+'</td><td></td></tr>';
+    h+='</table></div></div>';
+  } else if(o.deudor_nombre){
+    h+='<div style="font-size:13px;color:var(--muted);margin-bottom:14px">\ud83d\udc64 Deudor: <b>'+o.deudor_nombre+'</b></div>';
+  }
+
+  if(o.notas) h+='<div style="background:var(--amber-bg);border-radius:9px;padding:10px 13px;font-size:13px;color:var(--amber);margin-bottom:14px;white-space:pre-line">'+o.notas+'</div>';
+
+  h+='<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.4px;text-transform:uppercase">CUOTAS / HISTORIAL DE PAGOS</div>';
+  h+='<div style="max-height:280px;overflow-y:auto;margin-bottom:14px">';
+  h+='<table><tr><th>#</th><th>Concepto</th><th>F. prog.</th><th>Esperado</th><th>Pagado</th><th>Estado</th>'+(esMio?'<th></th>':'')+'</tr>';
+  (o.cuotas||[]).sort((a,b)=>(a.numero||0)-(b.numero||0)).forEach(c=>{
     const pend=Math.max((+c.valor_esperado||0)-(+c.valor_pagado||0),0);
-    return `<tr><td>${c.numero||''}</td><td>${c.concepto}</td><td>${c.fecha_prog?c.fecha_prog.slice(0,7):'—'}</td>
-      <td class="num">${fmt(+c.valor_esperado)}</td><td class="num pos"><b>${fmt(+c.valor_pagado)}</b></td>
-      <td><span class="badge ${c.estado==='pagado'?'bg':c.estado==='revisar'?'ba':'br'}">${c.estado}</span></td>
-      ${esMio?`<td>${c.estado!=='pagado'?`<button class="btn bfo xs" onclick="mPag('${c.id}',${pend},'${id}')">Pagar</button>`:'✓'}</td>`:''}</tr>`;
-  }).join('')}</table></div>
-  ${esMio?`<div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button class="btn bgh sm" onclick="mAddC('${id}')">＋ Item</button>
-    <button class="btn bgh sm" onclick="mEditObl('${id}','${o.deudor_nombre||''}','${o.segmento||''}')">✏ Editar</button>
-    <button class="btn bgh sm" onclick="togObl('${id}','${o.estado}')">${o.estado==='activa'?'Cerrar':'Reabrir'}</button>
-    <button class="btn bda sm" style="margin-left:auto" onclick="if(confirm('¿Eliminar?'))SB.from('obligaciones').delete().eq('id','${id}').then(()=>{closeM();rO()})">Eliminar</button>
-  </div>`:'<p style="font-size:12px;color:var(--muted)">Solo el titular puede registrar pagos.</p>'}`);
+    const estClass=c.estado==='pagado'?'bg':(c.estado==='revisar'?'ba':'br');
+    h+='<tr><td>'+(c.numero||'')+'</td><td>'+c.concepto+(c.nota?'<div style="font-size:10px;color:var(--amber)">'+c.nota+'</div>':'')+'</td>';
+    h+='<td>'+(c.fecha_prog?c.fecha_prog.slice(0,7):'\u2014')+'</td>';
+    h+='<td class="num">'+fmt(+c.valor_esperado)+'</td><td class="num pos"><b>'+fmt(+c.valor_pagado)+'</b></td>';
+    h+='<td><span class="badge '+estClass+'">'+c.estado+'</span></td>';
+    if(esMio){
+      h+='<td>'+(c.estado!=='pagado'?'<button class="btn bfo xs" data-action="pagar-cuota" data-cuotaid="'+c.id+'" data-pend="'+pend+'">Pagar</button>':'\u2713')+'</td>';
+    }
+    h+='</tr>';
+  });
+  h+='</table></div>';
+
+  if(esMio){
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    h+='<button class="btn bgh sm" data-action="add-cuota">\uff0b Item</button>';
+    h+='<button class="btn bgh sm" data-action="edit-obl">\u270f Editar</button>';
+    h+='<button class="btn bgh sm" data-action="toggle-obl">'+(o.estado==='activa'?'Cerrar':'Reabrir')+'</button>';
+    h+='<button class="btn bda sm" style="margin-left:auto" data-action="delete-obl">Eliminar</button>';
+    h+='</div>';
+  } else {
+    h+='<p style="font-size:12px;color:var(--muted)">Solo el titular puede registrar pagos.</p>';
+  }
+
+  openM(h);
 }
+
+// Delegación de eventos dentro del modal (evita problemas de comillas anidadas)
+document.addEventListener('click', e=>{
+  const btn = e.target.closest('[data-action]');
+  if(!btn || !CURRENT_OBL) {
+    if(btn && btn.dataset.action==='close-modal') closeM();
+    return;
+  }
+  const action = btn.dataset.action;
+  const id = CURRENT_OBL.id;
+  if(action==='close-modal') closeM();
+  else if(action==='pagar-cuota') mPag(btn.dataset.cuotaid, +btn.dataset.pend, id);
+  else if(action==='add-cuota') mAddC(id);
+  else if(action==='edit-obl') mEditObl(id, CURRENT_OBL.deudor_nombre||'', CURRENT_OBL.segmento||'');
+  else if(action==='toggle-obl') togObl(id, CURRENT_OBL.estado);
+  else if(action==='delete-obl'){
+    if(confirm('¿Eliminar esta obligación?')) SB.from('obligaciones').delete().eq('id',id).then(()=>{closeM();rO()});
+  }
+});
 
 function mPag(cid,sug,oblId){openM(`<h3>Registrar pago <span class="mx" onclick="closeM()">×</span></h3>
   <div class="ff"><label>Valor ($)</label><input id="pv" type="number" step="0.01" value="${sug.toFixed(2)}"></div>
@@ -808,19 +1018,21 @@ const MESES2={ENE:1,FEB:2,MAR:3,ABR:4,MAY:5,JUN:6,JUL:7,AGO:8,SEP:9,OCT:10,NOV:1
 // Patron probado con pdftotext real
 function parsPC(lineas){
   let sec=false;
-  const re=/^([A-Z]{3})\/(\d{1,2})\s+\d+\s+(.+?)\s{2,}(?:\S+\s+)?(CONS|DIF|PAGO|N\/D|AV)\s+([\d,\.]+)/;
+  const re=/^([A-Z]{3})\/(\d{1,2})\s+(\d+)\s+(.+?)\s+(?:(\d{1,2})\/(\d{1,2})\s+)?(CONS|DIF|PAGO|N\/D|AV)\s+([\d,\.]+)/;
   for(const l of lineas){
     if(l.includes('DETALLE DE MOVIMIENTOS')){sec=true;continue}
     if(!sec)continue;
     if(l.includes('TOTAL PAGO DE CONTADO')||l.includes('CONCEPTOS BÁSICOS')||l.includes('Pague por lo menos'))break;
     const m=re.exec(l);
     if(m){
-      const[,mes,dia,desc,tipo,val]=m;
+      const[,mes,dia,,desc,cn,ct,tipo,val]=m;
       const mn=MESES2[mes]||MES;
       const v=parseFloat(val.replace(/,(?=\d{3})/g,'').replace(',','.'));
+      const cuotaInfo=cn?` (${cn}/${ct})`:'';
       if(v>0)extB.push({banco:'PacifiCard',
         fecha_tx:`${ANIO}-${String(mn).padStart(2,'0')}-${String(dia).padStart(2,'0')}`,
-        concepto:desc.trim().replace(/\s+/g,' '),tipo_op:tipo,valor:v,categoria:acat(desc)});
+        concepto:(desc.trim().replace(/\s+/g,' '))+cuotaInfo,tipo_op:tipo,valor:v,categoria:acat(desc),
+        cuota_actual:cn?parseInt(cn):null,cuota_total:ct?parseInt(ct):null});
     }
   }
 }
@@ -853,24 +1065,36 @@ function parsDC(lineas,banco){
 // Patron probado con pdftotext real
 function parsPI(lineas){
   let sec=false;
-  const re=/^(\d{2})\/(\d{2})\s+\d+\s+(.+?)\s{2,}(DIFERIDO|CONSUMO|N\/D).*?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})-?\s*$/;
-  const rePago=/^(\d{2})\/(\d{2})\s+\d+\s+(SU PAGO[^0-9]*)\s+([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})-?\s*$/;
+  // Patron principal: DD/MM REF DESCRIPCION OPERACION[cuota opcional][sufijo opcional] VALOR
+  const reMain=/^(\d{2})\/(\d{2})\s+(\d+)\s+(.+?)\s+(DIFERIDO|CONSUMO|N\/D|PAGO)\s*(?:\((\d+)\/(\d+)\))?(?:\s+[A-Z]{2,3}\b)?\s+([\d.,]+)/;
+  const rePago=/^(\d{2})\/(\d{2})\s+(\d+)\s+(SU PAGO.+?)\s+([\d.,]+)-\s*$/;
   for(const l of lineas){
     if(l.includes('DETALLE DE MOVIMIENTOS')){sec=true;continue}
     if(!sec)continue;
-    if(l.includes('TOTAL CONSUMOS MES')||l.includes('GLOSARIO')||l.includes('DESCRIPCIÓN DE TÉRMINOS'))break;
+    if(l.includes('TOTAL CONSUMOS MES')||l.includes('INFORMACIÓN FINANCIERA')||l.includes('GLOSARIO')||l.includes('DESCRIPCIÓN DE TÉRMINOS'))break;
+    if(l.includes('SUBTOTAL'))continue;
+
     const mp=rePago.exec(l);
-    if(mp){const[,dd,mm,desc,val]=mp;const v=parseFloat(val.replace(/\./g,'').replace(',','.'));
-      if(v>0)extB.push({banco:'Pichincha',fecha_tx:`${ANIO}-${mm}-${dd}`,concepto:'SU PAGO',tipo_op:'PAGO',valor:v,categoria:'Pago'});
-      continue;}
-    const m=re.exec(l);
-    if(m){const[,dd,mm,desc,tipo,val]=m;
+    if(mp){
+      const[,dd,mm,,desc,val]=mp;
+      const v=parseFloat(val.replace(/\./g,'').replace(',','.'));
+      if(v>0)extB.push({banco:'Pichincha',fecha_tx:`${ANIO}-${mm}-${dd}`,concepto:desc.trim(),tipo_op:'PAGO',valor:v,categoria:'Pago'});
+      continue;
+    }
+    const m=reMain.exec(l);
+    if(m){
+      const[,dd,mm,,desc,op,cn,ct,val]=m;
       const v=parseFloat(val.replace(/\./g,'').replace(',','.'));
       if(v>0){
-        const tOp=tipo==='DIFERIDO'?'DIF':tipo==='CONSUMO'?'CONS':'ND';
+        let tipo='CONS';
+        if(op==='DIFERIDO')tipo='DIF';
+        else if(op==='N/D')tipo='ND';
+        else if(op==='PAGO')tipo='PAGO';
+        const cuotaInfo=cn?` (${cn}/${ct})`:'';
         extB.push({banco:'Pichincha',fecha_tx:`${ANIO}-${mm}-${dd}`,
-          concepto:desc.trim().replace(/\s+/g,' ').replace(/\s+Q\s*$/,''),
-          tipo_op:tOp,valor:v,categoria:acat(desc)});
+          concepto:(desc.trim().replace(/\s+/g,' ').replace(/\s+Q\s*$/,''))+cuotaInfo,
+          tipo_op:tipo,valor:v,categoria:acat(desc),
+          cuota_actual:cn?parseInt(cn):null,cuota_total:ct?parseInt(ct):null});
       }
     }
   }
