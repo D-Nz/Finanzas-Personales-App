@@ -163,7 +163,7 @@ tr.hv:hover{background:var(--cream)}
     <button class="nb" data-v="extractos" onclick="nav(this)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15" stroke-linecap="round"/></svg>Extractos</button>
     <button class="nb" data-v="nieve" onclick="nav(this)"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2l-4 4m4-4l4 4M12 22l-4-4m4 4l4-4" stroke-linecap="round"/></svg>Bola de Nieve</button>
     <button class="nb" data-v="libros" onclick="nav(this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-linecap="round"/></svg>Libros</button>
-    <button class="nb" data-v="libros" onclick="nav(this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-linecap="round"/></svg>Libros</button>
+    <button class="nb" data-v="qs" onclick="nav(this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>Crédito QS</button>
   </nav>
   <main id="main"></main>
 </div>
@@ -173,7 +173,7 @@ tr.hv:hover{background:var(--cream)}
 const SURL="https://dzlxyapzbdhfdundgcpm.supabase.co";
 const SKEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6bHh5YXB6YmRoZmR1bmRnY3BtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0Nzc1NzUsImV4cCI6MjA5ODA1MzU3NX0.3TugcXH-1amdvfnVcWHDwKftXRCDSPxV64DYL4XLgMU";
 const SB=supabase.createClient(SURL,SKEY,{auth:{persistSession:true,storageKey:'fp-session',autoRefreshToken:true,detectSessionInUrl:false}});
-let U=null,P=null,V='resumen',mesV=new Date().getMonth()+1,anioV=new Date().getFullYear(),segV='Todos';
+let U=null,P=null,V='resumen',mesV=new Date().getMonth()+1,anioV=new Date().getFullYear(),segV='Todos',oblD='me_deben',partsG=[],vistaObl='lista';
 const MES=mesV,ANIO=anioV;
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const fmt=v=>'$ '+(+v||0).toLocaleString('es-EC',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -240,7 +240,7 @@ SB.auth.onAuthStateChange(async(ev,sess)=>{
 });
 
 function nav(btn){$$('.nb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');V=btn.dataset.v;rv()}
-function rv(){const m={resumen:rR,presupuesto:rP,obligaciones:rO,ahorros:rA,extractos:rE,nieve:rN,libros:rL};if(m[V])m[V]()}
+function rv(){const m={resumen:rR,presupuesto:rP,obligaciones:rO,ahorros:rA,extractos:rE,nieve:rN,libros:rL,qs:rQS};if(m[V])m[V]()}
 
 // ── RESUMEN con gráficas ───────────────────────────────────────────
 let chartPie=null, chartBar=null;
@@ -500,7 +500,7 @@ async function savGas(){const c=$('#gc').value.trim(),v=+$('#gv').value;if(!c||!
   await SB.from('gastos').insert({usuario_id:U.id,anio:anioV,mes:mesV,concepto:c,valor:v,fecha:$('#gf').value,naturaleza:$('#gn').value,tipo:$('#gt').value,categoria:$('#gcat').value,fuente:'manual'});toast('Gasto registrado ✓');closeM();rP()}
 
 // ── OBLIGACIONES con segmentos ─────────────────────────────────────
-let partsG=[];
+// (partsG declarado globalmente arriba)
 async function rO(){
   $('#main').innerHTML=ld();
   const uid=U.id;
@@ -663,7 +663,7 @@ function mNObl(){openM(`<h3>Nueva obligación <span class="mx" onclick="closeM()
   <div class="ff"><label>Notas</label><textarea id="ono" rows="2" placeholder="Acuerdos, tasas, condiciones…"></textarea></div>
   <button class="btn bfo" style="width:100%" onclick="savObl()">Crear obligación</button>`)}
 
-let oblD='me_deben';
+// (oblD declarado globalmente arriba)
 async function savObl(){
   const nom=$('#on').value.trim(),m=+$('#om').value,f=$('#of').value;
   const nombreP=$('#onp').value.trim(),email=$('#oe').value.trim().toLowerCase();
@@ -1239,81 +1239,308 @@ function calcN(){
 // ── LIBROS ──────────────────────────────────────────────────────
 async function rL(){
   $('#main').innerHTML=ld();
-  const{data:ah}=await SB.from('ahorros').select('*,aportes_ahorro(*)')
+  const{data:libs}=await SB.from('libros').select('*,libro_movimientos(*)')
     .eq('usuario_id',U.id).eq('activo',true).order('created_at');
-  const libros=(ah||[]).filter(a=>['Cuentas Abuelito (BIESS)','Fondo Magdalena (abuelita)','Construcción casa','Cuentas Abuelito','Fondo Magdalena'].some(n=>a.nombre.includes('Abuelito')||a.nombre.includes('Magdalena')||a.nombre.includes('Construcción')||a.nombre.includes('construccion')));
-  const otros=(ah||[]).filter(a=>!libros.includes(a));
-  function saldo(s){return +s.acumulado||0}
-  const tL=libros.reduce((a,s)=>a+saldo(s),0);
+
+  function saldoLibro(lib){
+    return (lib.libro_movimientos||[]).reduce((a,m)=>a+(+m.valor||0),0);
+  }
+  const tL=(libs||[]).reduce((a,l)=>a+saldoLibro(l),0);
+
   $('#main').innerHTML=`
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
     <h2 style="font-size:17px;font-weight:700">Libros contables</h2>
-    <button class="btn bgo" onclick="mNAh()">＋ Nuevo libro</button>
+    <button class="btn bgo" onclick="mNLib()">＋ Nuevo libro</button>
   </div>
-  <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">Registros de cuentas personales: fondos administrados, construcción, préstamos a terceros. Cada libro tiene su propio historial de movimientos.</p>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">Registros de cuentas personales: fondos administrados, construcción, préstamos a terceros que no estás cobrando activamente. Si decides cobrar algún saldo, puedes convertirlo en obligación.</p>
   <div class="g3" style="margin-bottom:22px">
     <div class="sc"><div class="sl">Total en libros</div><div class="sv ${tL>=0?'pos':'neg'}">${fmt(tL)}</div></div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:28px">
-    ${libros.map(s=>{
-      const sal=saldo(s);
-      const movs=(s.aportes_ahorro||[]).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
-      return `<div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-          <div><div style="font-weight:700;font-size:15px">${s.nombre}</div></div>
-          <div style="font-size:22px;font-weight:800;color:${sal>=0?'var(--green)':'var(--red)'}; text-align:right">
-            ${fmt(Math.abs(sal))}<div style="font-size:11px;color:var(--muted);font-weight:400">${sal<0?'saldo negativo':'saldo'}</div>
-          </div>
-        </div>
-        <div style="max-height:160px;overflow-y:auto;font-size:13px">
-          ${movs.length?`<table><tr><th>Fecha</th><th>Nota</th><th>Monto</th></tr>
-          ${movs.slice(0,10).map(m=>`<tr><td style="font-size:12px">${ff(m.fecha)}</td>
-            <td style="color:var(--muted)">${m.nota||'—'}</td>
-            <td class="num ${+m.valor>=0?'pos':'neg'}">${fmt(+m.valor)}</td></tr>`).join('')}
-          </table>`:'<div style="color:var(--muted);text-align:center;padding:10px">Sin movimientos</div>'}
-        </div>
-        <div style="margin-top:12px;display:flex;gap:8px">
-          <button class="btn bfo sm" onclick="mApLib('${s.id}',1)">＋ Ingreso</button>
-          <button class="btn bda sm" onclick="mApLib('${s.id}',-1)">− Egreso</button>
-        </div>
-      </div>`;
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px">
+    ${!libs?.length?'<div class="empty" style="grid-column:1/-1"><p>No hay libros registrados. Crea uno para llevar el control de fondos o cuentas que no son obligaciones activas.</p></div>':''}
+    ${(libs||[]).map(lib=>{
+      const sal=saldoLibro(lib);
+      const movs=(lib.libro_movimientos||[]).slice().sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+      let h='<div class="card" data-libroid="'+lib.id+'">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">';
+      h+='<div><div style="font-weight:700;font-size:15px">'+lib.nombre+'</div>';
+      if(lib.descripcion) h+='<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'+lib.descripcion+'</div>';
+      h+='</div>';
+      h+='<div style="font-size:20px;font-weight:800;color:'+(sal>=0?'var(--green)':'var(--red)')+';text-align:right">';
+      h+=fmt(Math.abs(sal))+'<div style="font-size:10px;color:var(--muted);font-weight:400">'+(sal<0?'saldo negativo':'saldo')+'</div></div>';
+      h+='</div>';
+      h+='<div style="max-height:170px;overflow-y:auto;font-size:13px;margin:10px 0">';
+      if(movs.length){
+        h+='<table><tr><th>Fecha</th><th>Concepto</th><th>Monto</th></tr>';
+        movs.slice(0,12).forEach(m=>{
+          h+='<tr><td style="font-size:11.5px">'+ff(m.fecha)+'</td>';
+          h+='<td style="color:var(--muted);font-size:12px">'+(m.concepto||'—')+'</td>';
+          h+='<td class="num '+(+m.valor>=0?'pos':'neg')+'">'+fmt(+m.valor)+'</td></tr>';
+        });
+        h+='</table>';
+      } else {
+        h+='<div style="color:var(--muted);text-align:center;padding:14px;font-size:12.5px">Sin movimientos aún</div>';
+      }
+      h+='</div>';
+      h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+      h+='<button class="btn bfo xs" data-action="lib-add" data-libroid="'+lib.id+'">＋ Mov.</button>';
+      h+='<button class="btn bgh xs" data-action="lib-edit" data-libroid="'+lib.id+'" data-nombre="'+lib.nombre.replace(/"/g,'&quot;')+'" data-desc="'+(lib.descripcion||'').replace(/"/g,'&quot;')+'">✏ Editar</button>';
+      h+='<button class="btn bgh xs" data-action="lib-toobl" data-libroid="'+lib.id+'" data-nombre="'+lib.nombre.replace(/"/g,'&quot;')+'" data-saldo="'+Math.abs(sal)+'">→ A obligación</button>';
+      h+='<button class="btn bda xs" data-action="lib-del" data-libroid="'+lib.id+'" style="margin-left:auto">Eliminar</button>';
+      h+='</div></div>';
+      return h;
     }).join('')}
-    ${!libros.length?'<div class="empty"><p>No hay libros registrados.</p></div>':''}
-  </div>
-  ${otros.length?`<div style="margin-top:10px"><div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:12px">OBJETIVOS DE AHORRO</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">
-    ${otros.map(s=>{const pct=+s.objetivo>0?(+s.acumulado/+s.objetivo*100):0;return `<div class="card">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-        <div style="font-weight:700">${s.nombre}</div>
-        <span style="font-weight:800;color:${s.color||'var(--green)'};">${pct>=100?'✅':pct.toFixed(0)+'%'}</span>
-      </div>
-      <div class="pw"><div class="pb" style="width:${Math.min(pct,100)}%;background:${s.color||'var(--forest3)'}"></div></div>
-      <div style="font-size:12px;margin-top:6px;display:flex;justify-content:space-between">
-        <span class="pos">${fmt(+s.acumulado)}</span><span style="color:var(--muted)">${fmt(+s.objetivo)}</span>
-      </div>
-    </div>`}).join('')}
-  </div></div>`:''}`;
+  </div>`;
 }
 
-function mApLib(id,signo){
-  const tipo=signo>0?'Ingreso':'Egreso';
-  openM(`<h3>Registrar ${tipo} <span class="mx" onclick="closeM()">×</span></h3>
-  <div class="ff"><label>Valor ($)</label><input id="apv" type="number" step="0.01" min="0"></div>
-  <div class="ff"><label>Fecha</label><input id="apf" type="date" value="${hoy()}"></div>
-  <div class="ff"><label>Nota / concepto</label><input id="apn" placeholder="Descripción del movimiento…"></div>
-  <button class="btn bfo" style="width:100%" onclick="savApLib('${id}',${signo})">Registrar</button>`);
+document.addEventListener('click', e=>{
+  const btn = e.target.closest('[data-action^="lib-"]');
+  if(!btn) return;
+  const action = btn.dataset.action;
+  const id = btn.dataset.libroid;
+  if(action==='lib-add') mAddMovLib(id);
+  else if(action==='lib-edit') mEditLib(id, btn.dataset.nombre, btn.dataset.desc);
+  else if(action==='lib-toobl') mLibToObl(id, btn.dataset.nombre, +btn.dataset.saldo);
+  else if(action==='lib-del'){
+    if(confirm('¿Eliminar este libro y todo su historial?')) SB.from('libros').delete().eq('id',id).then(rL);
+  }
+});
+
+function mNLib(){
+  openM(`<h3>Nuevo libro <span class="mx" onclick="closeM()">×</span></h3>
+  <div class="ff"><label>Nombre</label><input id="ln" placeholder="Fondo familiar, préstamo a un tercero…"></div>
+  <div class="ff"><label>Descripción (opcional)</label><input id="ld" placeholder="Notas sobre este registro…"></div>
+  <div class="ff"><label>Saldo inicial ($, puede ser negativo)</label><input id="ls" type="number" step="0.01" value="0"></div>
+  <button class="btn bfo" style="width:100%" onclick="savNLib()">Crear libro</button>`);
+}
+async function savNLib(){
+  const n=$('#ln').value.trim();
+  if(!n)return toast('⚠ Ingresa un nombre');
+  const{data:lib}=await SB.from('libros').insert({usuario_id:U.id,nombre:n,descripcion:$('#ld').value||''}).select().single();
+  const s=+$('#ls').value;
+  if(lib && s!==0){
+    await SB.from('libro_movimientos').insert({libro_id:lib.id,fecha:hoy(),concepto:'Saldo inicial',valor:s});
+  }
+  toast('Libro creado ✓');closeM();rL();
 }
 
-async function savApLib(id,signo){
-  const v=+$('#apv').value;if(!v)return toast('⚠ Ingresa el valor');
-  const{data:ah}=await SB.from('ahorros').select('acumulado').eq('id',id).single();
-  const delta=v*signo;
-  await Promise.all([
-    SB.from('aportes_ahorro').insert({ahorro_id:id,valor:delta,fecha:$('#apf').value,nota:$('#apn').value}),
-    SB.from('ahorros').update({acumulado:(+ah.acumulado)+delta}).eq('id',id)
-  ]);
+function mAddMovLib(libroId){
+  openM(`<h3>Registrar movimiento <span class="mx" onclick="closeM()">×</span></h3>
+  <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">Usa valores positivos para ingresos y negativos para egresos/gastos.</p>
+  <div class="ff"><label>Concepto</label><input id="mc" placeholder="Descripción del movimiento…"></div>
+  <div class="f2"><div class="ff"><label>Valor ($)</label><input id="mv" type="number" step="0.01" placeholder="Ej: 50 o -50"></div>
+  <div class="ff"><label>Fecha</label><input id="mf" type="date" value="${hoy()}"></div></div>
+  <button class="btn bfo" style="width:100%" id="btn-sav-mov">Registrar</button>`);
+  $('#btn-sav-mov').onclick=()=>savMovLib(libroId);
+}
+async function savMovLib(libroId){
+  const c=$('#mc').value.trim(),v=+$('#mv').value;
+  if(!c||!v)return toast('⚠ Completa concepto y valor');
+  await SB.from('libro_movimientos').insert({libro_id:libroId,fecha:$('#mf').value,concepto:c,valor:v});
   toast('Movimiento registrado ✓');closeM();rL();
 }
+
+function mEditLib(id,nombre,desc){
+  openM(`<h3>Editar libro <span class="mx" onclick="closeM()">×</span></h3>
+  <div class="ff"><label>Nombre</label><input id="en" value="${nombre}"></div>
+  <div class="ff"><label>Descripción</label><input id="ed" value="${desc}"></div>
+  <button class="btn bfo" style="width:100%" id="btn-sav-edit">Guardar cambios</button>`);
+  $('#btn-sav-edit').onclick=()=>savEditLib(id);
+}
+async function savEditLib(id){
+  const n=$('#en').value.trim();
+  if(!n)return toast('⚠ Ingresa un nombre');
+  await SB.from('libros').update({nombre:n,descripcion:$('#ed').value||''}).eq('id',id);
+  toast('Libro actualizado ✓');closeM();rL();
+}
+
+function mLibToObl(libroId,nombre,saldoActual){
+  openM(`<h3>Convertir en obligación <span class="mx" onclick="closeM()">×</span></h3>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Esto crea una nueva obligación activa con el saldo actual de este libro (${fmt(saldoActual)}). El libro permanece intacto como historial; la obligación es un registro independiente para cobrar este valor.</p>
+  <div class="ff"><label>Nombre de la obligación</label><input id="ton" value="Cobro — ${nombre}"></div>
+  <div class="ff"><label>Persona / deudor</label><input id="top" placeholder="Nombre de quien debe pagar"></div>
+  <div class="ff"><label>Segmento</label><select id="tos">
+    <option>Préstamos Personales</option><option>Créditos Bancarios</option><option>Avances / Tarjetas</option><option>Gastos Compartidos</option>
+  </select></div>
+  <div class="ff"><label>Monto ($)</label><input id="tom" type="number" step="0.01" value="${saldoActual.toFixed(2)}"></div>
+  <button class="btn bfo" style="width:100%" id="btn-sav-toobl">Crear obligación</button>`);
+  $('#btn-sav-toobl').onclick=()=>savLibToObl();
+}
+async function savLibToObl(){
+  const nom=$('#ton').value.trim(),pers=$('#top').value.trim(),seg=$('#tos').value,m=+$('#tom').value;
+  if(!nom||!m)return toast('⚠ Completa nombre y monto');
+  const uid=U.id;
+  const{data:obl}=await SB.from('obligaciones').insert({
+    titular_id:uid,deudor_id:uid,nombre:nom,descripcion:seg,monto_total:m,
+    fecha_inicio:hoy(),segmento:seg,deudor_nombre:pers,estado:'activa',
+    notas:'Convertido desde libro contable'
+  }).select().single();
+  if(obl) await SB.from('cuotas').insert({obligacion_id:obl.id,numero:1,concepto:'Saldo',valor_esperado:m});
+  toast('Obligación creada ✓');closeM();nav(document.querySelector('[data-v=obligaciones]'));rO();
+}
+
+
+// ══════════════════════════════════════════════════════════
+// CRÉDITO QS — matriz de pagos editable, 4 sub-créditos
+// ══════════════════════════════════════════════════════════
+let qsMesSel = null;
+
+async function rQS(){
+  $('#main').innerHTML=ld();
+  const uid=U.id;
+  const{data:creditos}=await SB.from('qs_creditos').select('*,qs_pagadores(*)')
+    .eq('usuario_id',uid).eq('activo',true).order('responsable');
+
+  if(!creditos?.length){
+    $('#main').innerHTML='<div class="obc"><h3>🏡 Crédito Casa QS</h3><p>No hay créditos QS registrados aún.</p></div>';
+    return;
+  }
+
+  const credIds = creditos.map(c=>c.id);
+  const{data:pagos}=await SB.from('qs_pagos').select('*').in('qs_credito_id',credIds).order('mes');
+
+  const pagadorMap={};
+  creditos.forEach(c=>c.qs_pagadores.forEach(p=>pagadorMap[p.id]={nombre:p.nombre,credito:c.responsable,creditoId:c.id}));
+
+  const resumen = creditos.map(c=>{
+    const pagosCredito=(pagos||[]).filter(p=>p.qs_credito_id===c.id);
+    const totalPagado=pagosCredito.reduce((a,p)=>a+(+p.valor),0);
+    const saldo=Math.max(+c.capital_total-totalPagado,0);
+    const pct=+c.capital_total>0?Math.min(totalPagado/+c.capital_total*100,100):0;
+    return{...c,totalPagado,saldo,pct,numPagos:pagosCredito.length};
+  });
+
+  const granTotal=resumen.reduce((a,c)=>a+(+c.capital_total),0);
+  const granPagado=resumen.reduce((a,c)=>a+c.totalPagado,0);
+  const granSaldo=granTotal-granPagado;
+
+  const fechaMin=new Date(Math.min(...creditos.map(c=>new Date(c.fecha_inicio))));
+  const hoy2=new Date();
+  const mesesDisp=[];
+  let cursor=new Date(fechaMin.getFullYear(),fechaMin.getMonth(),1);
+  const limite=new Date(hoy2.getFullYear(),hoy2.getMonth()+2,1);
+  while(cursor<=limite){
+    mesesDisp.push(cursor.getFullYear()+'-'+String(cursor.getMonth()+1).padStart(2,'0')+'-01');
+    cursor=new Date(cursor.getFullYear(),cursor.getMonth()+1,1);
+  }
+  if(!qsMesSel) qsMesSel=hoy2.getFullYear()+'-'+String(hoy2.getMonth()+1).padStart(2,'0')+'-01';
+
+  let h='';
+  h+='<div class="g3" style="margin-bottom:20px">';
+  h+='<div class="sc"><div class="sl">Capital total (4 créditos)</div><div class="sv">'+fmt(granTotal)+'</div></div>';
+  h+='<div class="sc"><div class="sl">Total pagado</div><div class="sv pos">'+fmt(granPagado)+'</div></div>';
+  h+='<div class="sc"><div class="sl">Saldo pendiente</div><div class="sv warn">'+fmt(granSaldo)+'</div></div>';
+  h+='</div>';
+
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:24px">';
+  resumen.forEach(c=>{
+    h+='<div class="card">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">';
+    h+='<div><div style="font-weight:700;font-size:15px">'+c.responsable+'</div>';
+    h+='<div style="font-size:11px;color:var(--muted)">'+c.qs_pagadores.map(p=>p.nombre).join(' + ')+'</div></div>';
+    h+='<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:var(--amber)">'+fmt(c.saldo)+'</div>';
+    h+='<div style="font-size:10px;color:var(--muted)">pendiente</div></div></div>';
+    h+='<div class="pw"><div class="pb" style="width:'+c.pct+'%;background:var(--forest3)"></div></div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:6px">';
+    h+='<span>'+fmt(c.totalPagado)+' de '+fmt(+c.capital_total)+'</span><span>'+c.pct.toFixed(0)+'%</span></div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  h+='<div class="card" style="margin-bottom:22px">';
+  h+='<div class="ctit">Registrar pagos del mes</div>';
+  h+='<div class="ff" style="max-width:220px"><label>Mes a registrar</label>';
+  h+='<select id="qs-mes-sel">';
+  mesesDisp.slice().reverse().forEach(m=>{
+    const d=new Date(m+'T12:00:00');
+    const label=mesN(d.getMonth()+1)+' '+d.getFullYear();
+    h+='<option value="'+m+'" '+(m===qsMesSel?'selected':'')+'>'+label+'</option>';
+  });
+  h+='</select></div>';
+  h+='<div id="qs-form-mes"></div>';
+  h+='</div>';
+
+  h+='<div class="card">';
+  h+='<div class="ctit">Histórico completo de pagos</div>';
+  h+='<div class="tw" style="max-height:420px;overflow-y:auto">';
+  h+='<table><tr><th>Mes</th><th>Crédito</th><th>Pagador</th><th>Valor</th><th></th></tr>';
+  pagos.slice().sort((a,b)=>new Date(b.mes)-new Date(a.mes)).forEach(p=>{
+    const pinfo=pagadorMap[p.qs_pagador_id]||{};
+    const d=new Date(p.mes+'T12:00:00');
+    h+='<tr><td style="font-size:12px">'+mesN(d.getMonth()+1)+' '+d.getFullYear()+'</td>';
+    h+='<td><span class="badge bm" style="font-size:10px">'+(pinfo.credito||'?')+'</span></td>';
+    h+='<td>'+(pinfo.nombre||'?')+'</td>';
+    h+='<td class="num pos"><b>'+fmt(p.valor)+'</b></td>';
+    h+='<td><button class="btn bgh xs" data-action="qs-edit-pago" data-pagoid="'+p.id+'" data-valor="'+p.valor+'" data-pagador="'+(pinfo.nombre||'')+'">✏</button></td></tr>';
+  });
+  h+='</table></div></div>';
+
+  $('#main').innerHTML=h;
+
+  $('#qs-mes-sel').addEventListener('change', function(e){
+    qsMesSel = e.target.value;
+    renderFormMes();
+  });
+  renderFormMes();
+
+  function renderFormMes(){
+    const fm=document.getElementById('qs-form-mes');
+    if(!fm)return;
+    let fh='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px">';
+    creditos.forEach(c=>{
+      c.qs_pagadores.forEach(pg=>{
+        const pagoExistente=pagos.find(p=>p.qs_pagador_id===pg.id && p.mes===qsMesSel);
+        fh+='<div style="background:var(--cream);border-radius:10px;padding:12px">';
+        fh+='<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">'+c.responsable+' — '+pg.nombre+'</div>';
+        fh+='<div style="display:flex;gap:6px;align-items:center">';
+        fh+='<input type="number" step="0.01" id="qsv-'+pg.id+'" value="'+(pagoExistente?pagoExistente.valor:'')+'" placeholder="'+(+c.cuota_nominal).toFixed(2)+'" style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:13px;background:#fff">';
+        fh+='<button class="btn bfo xs" data-action="qs-guardar-pago" data-pagadorid="'+pg.id+'" data-creditoid="'+c.id+'">Guardar</button>';
+        fh+='</div></div>';
+      });
+    });
+    fh+='</div>';
+    fm.innerHTML=fh;
+  }
+}
+
+document.addEventListener('click', async function(e){
+  const btnG = e.target.closest('[data-action="qs-guardar-pago"]');
+  if(btnG){
+    const pagadorId=btnG.dataset.pagadorid, creditoId=btnG.dataset.creditoid;
+    const input=document.getElementById('qsv-'+pagadorId);
+    const v=+input.value;
+    if(!v){toast('⚠ Ingresa un valor');return}
+    await SB.from('qs_pagos').upsert({
+      qs_credito_id:creditoId, qs_pagador_id:pagadorId, mes:qsMesSel, valor:v
+    },{onConflict:'qs_pagador_id,mes'});
+    toast('Pago registrado ✓');
+    rQS();
+    return;
+  }
+  const btnE = e.target.closest('[data-action="qs-edit-pago"]');
+  if(btnE){
+    const pagoId=btnE.dataset.pagoid, valor=btnE.dataset.valor, pagador=btnE.dataset.pagador;
+    openM('<h3>Editar pago — '+pagador+' <span class="mx" onclick="closeM()">×</span></h3>'
+      +'<div class="ff"><label>Valor ($)</label><input id="qsev" type="number" step="0.01" value="'+valor+'"></div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<button class="btn bfo" style="flex:1" id="qs-save-edit">Guardar</button>'
+      +'<button class="btn bda" id="qs-del-pago">Eliminar</button>'
+      +'</div>');
+    document.getElementById('qs-save-edit').onclick=async function(){
+      const v=+document.getElementById('qsev').value;
+      if(!v){toast('⚠ Ingresa un valor');return}
+      await SB.from('qs_pagos').update({valor:v}).eq('id',pagoId);
+      toast('Actualizado ✓');closeM();rQS();
+    };
+    document.getElementById('qs-del-pago').onclick=async function(){
+      if(confirm('¿Eliminar este pago?')){
+        await SB.from('qs_pagos').delete().eq('id',pagoId);
+        toast('Eliminado');closeM();rQS();
+      }
+    };
+  }
+});
+
 </script>
 </body>
 </html>
