@@ -41,7 +41,7 @@ Desarrollado por **D.A.N.C.** · Stack: HTML + Supabase (PostgreSQL) · Hosting:
 2. **Authentication → Email Templates** → Personalizar si deseas (opcional)
 3. **Authentication → URL Configuration** → Agregar tu URL de GitHub Pages:
    ```
-   https://d-nz.github.io/Finanzas-Personales-App
+   https://*****
    ```
    en **Site URL** y también en **Redirect URLs**
 
@@ -51,7 +51,7 @@ Desarrollado por **D.A.N.C.** · Stack: HTML + Supabase (PostgreSQL) · Hosting:
 2. **Settings → Pages**
 3. Source: **Deploy from a branch**
 4. Branch: `main` → `/root` → **Save**
-5. En 2-3 minutos tu app estará en: `https://d-nz.github.io/Finanzas-Personales-App`
+5. En 2-3 minutos tu app estará en: `******`
 
 ### 4. Subir archivos a GitHub
 
@@ -92,23 +92,16 @@ Cada usuario solo ve y modifica sus propios datos. Las obligaciones compartidas 
 - **Deudor** (quien debe): ve solo lo que le corresponde, sin acceso a edición
 
 Las políticas RLS se configuran automáticamente al ejecutar `supabase_schema.sql`.
-
----
-
-## Sincronización con USB (opcional)
-
-El USB (`DANC_Finanzas_USB`) sigue funcionando de forma independiente con SQLite local. Son dos sistemas separados. Si en el futuro deseas migrar los datos del USB a la nube, es un script de migración de una sola vez — consulta cuando lo necesites.
-
 ---
 
 ## Soporte de bancos ecuatorianos en importación
 
 | Banco | Formato | Estado |
 |---|---|---|
-| Banco del Pacífico (PacifiCard) | PDF digital | ✅ Soportado |
-| Diners Club | PDF digital | ✅ Soportado |
-| Discover (Diners) | PDF digital | ✅ Soportado |
-| Banco Pichincha | PDF digital | ✅ Soportado |
+| B* d* P* (P*) | PDF digital | ✅ Soportado |
+| D* C* | PDF digital | ✅ Soportado |
+| D* (D*) | PDF digital | ✅ Soportado |
+| B* P* | PDF digital | ✅ Soportado |
 | Cualquier banco | Excel/CSV | 🔄 Próximamente |
 
 ---
