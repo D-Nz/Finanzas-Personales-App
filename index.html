@@ -865,7 +865,7 @@ async function rQS(){
   h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:22px">`;
   resumen.forEach(c=>{
     const sel=qsFiltro===c.id;
-    h+=`<div class="card" style="cursor:pointer;border:2px solid ${sel?'var(--forest)':'var(--border)'}" onclick="qsFiltro='${c.id}';renderQSForm()">`;
+    h+=`<div class="card" style="cursor:pointer;border:2px solid ${sel?'var(--forest)':'var(--border)'}" onclick="qsFiltro='${c.id}';rQS()">`;
     h+=`<div style="display:flex;justify-content:space-between;align-items:flex-start">`;
     h+=`<div><div style="font-weight:700;font-size:15px">${c.responsable}</div>`;
     h+=`<div style="font-size:11px;color:var(--muted);margin-top:2px">${c.qs_pagadores.map(p=>p.nombre).join(' + ')}</div></div>`;
@@ -929,8 +929,8 @@ async function rQS(){
   $('#main').innerHTML=h;
 
   // Event listeners
-  document.getElementById('qs-mes-sel').addEventListener('change',e=>{qsMesSel=e.target.value;renderQSForm()});
-  document.getElementById('qs-cred-sel').addEventListener('change',e=>{qsFiltro=e.target.value||null;renderQSForm()});
+  document.getElementById('qs-mes-sel').addEventListener('change',e=>{qsMesSel=e.target.value;rQS()});
+  document.getElementById('qs-cred-sel').addEventListener('change',e=>{qsFiltro=e.target.value||null;rQS()});
 
   renderQSForm();
 
@@ -970,12 +970,12 @@ document.addEventListener('click', async e=>{
     const inp=document.getElementById('qsv-'+pagadorId);
     const v=+inp?.value;
     if(!v){toast('⚠ Ingresa un valor');return}
-    const{error}=await SB.from('qs_pagos').upsert({
+    const{data:upsResult,error}=await SB.from('qs_pagos').upsert({
       qs_credito_id:creditoId,qs_pagador_id:pagadorId,mes:qsMesSel,valor:v
-    },{onConflict:'qs_pagador_id,mes'});
+    },{onConflict:'qs_pagador_id,mes'}).select();
     if(error){toast('Error: '+error.message);return}
-    toast('Pago registrado ✓');
-    rQS(); // refresh completo
+    toast(upsResult?.length?'Pago guardado ✓':'Pago actualizado ✓');
+    await rQS(); // refresh completo con await
     return;
   }
   const btnE=e.target.closest('[data-action="qs-edit"]');
