@@ -101,11 +101,13 @@ tr.hv:hover{background:var(--cream)}
 .segtab{border:1.5px solid var(--border);background:var(--cream);color:var(--muted);border-radius:20px;padding:5px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:.12s}
 .segtab:hover{border-color:var(--sage);color:var(--forest)}
 .segtab.on{background:var(--forest);color:#fff;border-color:var(--forest)}
-.mbg{position:fixed;inset:0;background:rgba(26,58,42,.5);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:16px;backdrop-filter:blur(3px);overflow-y:auto}
+.mbg{position:fixed;inset:0;background:rgba(26,58,42,.5);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:clamp(8px,3vw,24px);backdrop-filter:blur(4px);overflow-y:auto}
 .mbg.on{display:flex}
-.mbox{background:var(--card);border-radius:18px;padding:26px;width:100%;max-width:600px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto}
-.mbox h3{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;color:var(--forest);position:sticky;top:0;background:var(--card);padding-bottom:10px;border-bottom:1px solid var(--border);z-index:1}
-.mx{cursor:pointer;color:var(--muted);font-size:22px;font-weight:300;line-height:1}
+.mbox{background:var(--card);border-radius:18px;padding:clamp(16px,4vw,32px);width:100%;max-width:720px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;max-height:calc(100vh - clamp(16px,6vw,48px));overflow-y:auto;display:flex;flex-direction:column}
+.mbox h3{font-size:clamp(15px,2.5vw,17px);font-weight:700;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;color:var(--forest);position:sticky;top:0;background:var(--card);padding-bottom:10px;border-bottom:1px solid var(--border);z-index:1;flex-shrink:0}
+.mx{cursor:pointer;color:var(--muted);font-size:24px;font-weight:300;line-height:1;padding:4px;min-width:32px;text-align:center}
+@media(min-width:900px){.mbox{max-width:860px}}
+@media(max-width:640px){.mbox{border-radius:14px;max-height:calc(100vh - 16px)}}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--forest);color:#fff;padding:11px 22px;border-radius:30px;font-size:14px;font-weight:600;opacity:0;transition:.3s;z-index:300;pointer-events:none;white-space:nowrap}
 .toast.on{opacity:1}
 .empty{text-align:center;padding:40px 20px;color:var(--muted)}
@@ -198,9 +200,7 @@ const SB = supabase.createClient(
 let U=null, P=null, V='resumen';
 let mesV=new Date().getMonth()+1, anioV=new Date().getFullYear();
 const MES=mesV, ANIO=anioV;
-// Obligations state
 let segV='Todos', vistaObl='lista', oblDir='me_deben', partsG=[];
-// QS state
 let qsMesSel=null, qsFiltro=null;
 
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
@@ -217,7 +217,6 @@ function openM(h){$('#mbox').innerHTML=h;$('#mbg').classList.add('on')}
 function closeM(){$('#mbg').classList.remove('on')}
 $('#mbg').addEventListener('click',e=>{if(e.target.id==='mbg')closeM()});
 
-// ── AUTH ──────────────────────────────────────────────────
 function swTab(t){
   $$('.atab').forEach((b,i)=>b.classList.toggle('on',i===(t==='l'?0:1)));
   $('#tl').style.display=t==='l'?'block':'none';
@@ -240,7 +239,7 @@ async function doRegister(){
   const btn=$('#brg');btn.disabled=true;btn.textContent='Creando cuenta...';
   const{error}=await SB.auth.signUp({email:e,password:p,options:{data:{nombre:n,apellido:a}}});
   if(error){amsg(error.message);btn.disabled=false;btn.textContent='Crear mi cuenta gratuita'}
-  else amsg('¡Cuenta creada! Intenta ingresar o revisa tu correo.','ok');
+  else amsg('¡Cuenta creada! Revisa tu correo.','ok');
 }
 async function doReset(){const e=prompt('Ingresa tu correo:');if(e){await SB.auth.resetPasswordForEmail(e);amsg('Revisa tu correo.','ok')}}
 async function doLogout(){await SB.auth.signOut()}
@@ -253,8 +252,8 @@ SB.auth.onAuthStateChange(async(ev,sess)=>{
     P=data;
     $('#auth-screen').style.display='none';
     $('#app-screen').style.display='block';
-    const nm=(P?.nombre||'')+' '+(P?.apellido||'') || U.email.split('@')[0];
-    $('#hun').textContent=nm.trim();
+    const nm=((P?.nombre||'')+(P?.apellido?' '+P.apellido:'')).trim()||U.email.split('@')[0];
+    $('#hun').textContent=nm;
     $('#hav').textContent=(P?.nombre||U.email).charAt(0).toUpperCase();
     rv();
   }else{
@@ -264,7 +263,6 @@ SB.auth.onAuthStateChange(async(ev,sess)=>{
   }
 });
 
-// ── ROUTING ───────────────────────────────────────────────
 function goNav(btn){
   $$('.nb').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
@@ -276,7 +274,6 @@ function rv(){
   if(m[V])m[V]();
 }
 
-// ── PERFIL ────────────────────────────────────────────────
 function mPerfil(){
   const nom=P?.nombre||'', ape=P?.apellido||'';
   openM(`<h3>Mi perfil <span class="mx" onclick="closeM()">×</span></h3>
@@ -287,9 +284,9 @@ function mPerfil(){
   <div class="ff"><label>Correo</label><input value="${U?.email||''}" disabled style="opacity:.6"></div>
   <button class="btn bfo" style="width:100%;margin-bottom:10px" onclick="savPerfil()">Guardar nombre</button>
   <hr style="margin:14px 0;border-color:var(--border)">
-  <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px">Cambiar contraseña</div>
+  <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px">Cambiar contraseña</div>
   <div class="ff"><label>Nueva contraseña</label><input type="password" id="np" placeholder="Mínimo 8 caracteres"></div>
-  <div class="ff"><label>Confirmar nueva contraseña</label><input type="password" id="np2" placeholder="Repite la contraseña"></div>
+  <div class="ff"><label>Confirmar contraseña</label><input type="password" id="np2"></div>
   <button class="btn bgh" style="width:100%" onclick="savPass()">Actualizar contraseña</button>`);
 }
 async function savPerfil(){
@@ -407,13 +404,10 @@ async function rR(){
 }
 
 // ══════════════════════════════════════════════════════════
-// OBLIGACIONES — modal corregido, dirección correcta,
-// detalle completo item por item, tiempo real
+// OBLIGACIONES — dirección correcta, detalle completo
 // ══════════════════════════════════════════════════════════
 let CURRENT_OBL=null;
 
-// ── Delegación global de clics ────────────────────────────
-// Tarjetas de obligación (lista + resumen)
 document.addEventListener('click', e=>{
   const card=e.target.closest('[data-oblid]');
   if(card && !e.target.closest('[data-action]') && !e.target.closest('button')){
@@ -423,7 +417,6 @@ document.addEventListener('click', e=>{
   }
 });
 
-// Acciones del modal de obligación
 document.addEventListener('click', e=>{
   const btn=e.target.closest('[data-action]');
   if(!btn)return;
@@ -431,7 +424,7 @@ document.addEventListener('click', e=>{
   if(action==='close-modal') closeM();
   else if(action==='pagar-cuota') mPagCuota(btn.dataset.cuotaid,+btn.dataset.pend,CURRENT_OBL?.id);
   else if(action==='add-cuota') mAddCuota(CURRENT_OBL?.id);
-  else if(action==='edit-obl') mEditObl(CURRENT_OBL?.id,CURRENT_OBL?.deudor_nombre||'',CURRENT_OBL?.segmento||'',CURRENT_OBL?.descripcion||'');
+  else if(action==='edit-obl') mEditObl(CURRENT_OBL?.id,CURRENT_OBL?.deudor_nombre||'',CURRENT_OBL?.segmento||'',CURRENT_OBL?.notas||'');
   else if(action==='toggle-obl') togObl(CURRENT_OBL?.id,CURRENT_OBL?.estado);
   else if(action==='delete-obl'){
     if(confirm('¿Eliminar esta obligación y todo su historial?'))
@@ -440,7 +433,6 @@ document.addEventListener('click', e=>{
   else if(action==='reopen-obl') togObl(btn.dataset.id,'cerrada');
 });
 
-// ── Render lista obligaciones ─────────────────────────────
 async function rO(){
   $('#main').innerHTML=ld();
   const uid=U.id;
@@ -449,26 +441,17 @@ async function rO(){
     .or(`titular_id.eq.${uid},deudor_id.eq.${uid}`)
     .order('created_at',{ascending:false});
 
-  const pids=[...new Set((obls||[]).flatMap(o=>[o.titular_id,o.deudor_id]).filter(Boolean))];
-  let pm={};
-  if(pids.length){
-    const{data:ps}=await SB.from('perfiles').select('id,nombre,apellido').in('id',pids);
-    pm=Object.fromEntries((ps||[]).map(p=>[p.id,(p.nombre||'')+(p.apellido?' '+p.apellido:'')]));
-  }
-
   const act=(obls||[]).filter(o=>o.estado==='activa');
   const cerr=(obls||[]).filter(o=>o.estado!=='activa');
   const filtAct=segV==='Todos'?act:act.filter(o=>(o.segmento||'')===segV);
 
-  // todos los titulares=uid son "me deben" (incluye cuando titular=deudor=uid = autoregistrado)
-  const meDeben=filtAct.filter(o=>o.titular_id===uid);
-  const leDebo=filtAct.filter(o=>o.deudor_id===uid&&o.titular_id!==uid);
+  // KEY FIX: "Me deben" = titular===uid AND es_deuda_propia is false/null
+  // "Le debo" = titular===uid AND es_deuda_propia===true  OR  deudor===uid AND titular!==uid
+  const meDeben=filtAct.filter(o=>o.titular_id===uid && !o.es_deuda_propia);
+  const leDebo=filtAct.filter(o=>(o.titular_id===uid && o.es_deuda_propia===true)||(o.deudor_id===uid&&o.titular_id!==uid));
 
-  function getPersona(o,esMio){
-    if(esMio) return o.deudor_nombre||pm[o.deudor_id]||'—';
-    return pm[o.titular_id]||'—';
-  }
   function saldoObl(o){
+    // For "le debo" obligations: saldo = total - pagado (same formula)
     const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
     return Math.max(+o.monto_total-p,0);
   }
@@ -476,11 +459,12 @@ async function rO(){
     const sal=saldoObl(o);
     const pag=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
     const pct=+o.monto_total>0?Math.min(pag/+o.monto_total*100,100):0;
-    const persona=getPersona(o,esMio);
+    // For "me deben": persona = who owes me = deudor_nombre
+    // For "le debo": persona = who I owe = deudor_nombre (they're the creditor)
+    const persona=o.deudor_nombre||'—';
     const col=esMio?'var(--green)':'var(--red)';
     const segCol=SEGCOL[o.segmento||'']||'#5a8a6f';
-    const cls='obl-card '+(esMio?'md':'ld');
-    return `<div class="${cls}" data-oblid="${o.id}" data-esmio="${esMio}">
+    return `<div class="obl-card ${esMio?'md':'ld'}" data-oblid="${o.id}" data-esmio="${esMio}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div style="flex:1">
           <div style="font-weight:700;font-size:14.5px;margin-bottom:3px">${o.nombre}</div>
@@ -502,10 +486,10 @@ async function rO(){
   const tMD=meDeben.reduce((a,o)=>a+saldoObl(o),0);
   const tLD=leDebo.reduce((a,o)=>a+saldoObl(o),0);
 
-  // Agrupación por persona para vista "Por persona"
+  // Por persona grouping
   const porPersona={};
   meDeben.forEach(o=>{
-    const nom=o.deudor_nombre||pm[o.deudor_id]||'Sin asignar';
+    const nom=o.deudor_nombre||'Sin asignar';
     if(!porPersona[nom])porPersona[nom]={obls:[],saldo:0};
     porPersona[nom].obls.push(o);
     porPersona[nom].saldo+=saldoObl(o);
@@ -522,9 +506,7 @@ async function rO(){
     <div class="segtabs">
       ${SEGS.map(s=>`<button class="segtab ${segV===s?'on':''}" onclick="segV='${s}';rO()">${s}</button>`).join('')}
     </div>
-    <div style="display:flex;gap:6px">
-      <button class="btn bgo sm" onclick="mNuevaObl()">＋ Nueva</button>
-    </div>
+    <button class="btn bgo sm" onclick="mNuevaObl()">＋ Nueva</button>
   </div>
   <div style="display:flex;gap:6px;margin-bottom:16px">
     <button class="btn ${vistaObl==='lista'?'bfo':'bgh'} sm" onclick="vistaObl='lista';rO()">📋 Lista</button>
@@ -538,7 +520,7 @@ async function rO(){
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
           <div style="width:36px;height:36px;border-radius:50%;background:var(--forest);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0">${nom.charAt(0).toUpperCase()}</div>
           <div style="flex:1"><div style="font-weight:700;font-size:14.5px">${nom}</div><div style="font-size:11px;color:var(--muted)">${grp.obls.length} obligación(es)</div></div>
-          <div style="text-align:right"><div style="font-size:17px;font-weight:800;color:var(--green)">${fmt(grp.saldo)}</div></div>
+          <div style="font-size:17px;font-weight:800;color:var(--green)">${fmt(grp.saldo)}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px">
           ${grp.obls.map(o=>`<div data-oblid="${o.id}" data-esmio="true" style="display:flex;justify-content:space-between;padding:7px 10px;background:var(--cream);border-radius:8px;cursor:pointer;font-size:13px" class="hv">
@@ -551,38 +533,34 @@ async function rO(){
   <div class="g2">
     <div>
       <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.6px;text-transform:uppercase;margin-bottom:10px">← Me deben (${meDeben.length})</div>
-      ${!meDeben.length?'<div class="empty"><p>Sin obligaciones.</p></div>':meDeben.map(o=>oblCard(o,true)).join('')}
+      ${!meDeben.length?'<div class="empty"><p>Sin obligaciones activas.</p></div>':meDeben.map(o=>oblCard(o,true)).join('')}
     </div>
     <div>
       <div style="font-size:11px;font-weight:700;color:var(--red);letter-spacing:.6px;text-transform:uppercase;margin-bottom:10px">→ Le debo (${leDebo.length})</div>
-      ${!leDebo.length?'<div class="empty"><p>Sin deudas.</p></div>':leDebo.map(o=>oblCard(o,false)).join('')}
+      ${!leDebo.length?'<div class="empty"><p>Sin deudas activas.</p></div>':leDebo.map(o=>oblCard(o,false)).join('')}
     </div>
   </div>`}
   ${cerr.length?`<details style="margin-top:18px"><summary style="cursor:pointer;font-size:13px;color:var(--muted);font-weight:600;padding:8px 0">Ver ${cerr.length} cerrada(s)</summary>
   <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
-    ${cerr.map(o=>{
-      const sal=saldoObl(o);
-      return `<div style="background:var(--cream);border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center">
-        <div><div style="font-weight:600;font-size:13.5px">${o.nombre}</div><div style="font-size:11.5px;color:var(--muted)">${o.deudor_nombre||'—'}</div></div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <span style="font-weight:700;font-size:13px;color:var(--muted)">${fmt(sal)}</span>
-          <button class="btn bgh xs" data-action="reopen-obl" data-id="${o.id}">Reabrir</button>
-        </div>
-      </div>`;
-    }).join('')}
+    ${cerr.map(o=>`<div style="background:var(--cream);border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center">
+      <div><div style="font-weight:600;font-size:13.5px">${o.nombre}</div><div style="font-size:11.5px;color:var(--muted)">${o.deudor_nombre||'—'}</div></div>
+      <button class="btn bgh xs" data-action="reopen-obl" data-id="${o.id}">Reabrir</button>
+    </div>`).join('')}
   </div></details>`:''}`;
 }
 
-// ── Modal detalle obligación ──────────────────────────────
 async function vObl(id,esMio){
   openM(ld());
   const{data:o}=await SB.from('obligaciones').select('*,cuotas(*)').eq('id',id).single();
   CURRENT_OBL={...o,esMio};
-  const pag=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
-  const sal=Math.max(+o.monto_total-pag,0);
+
+  // For display: calculate saldo only from non-pagado cuotas
+  const pagTot=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
+  // Real saldo = sum of pending items (esperado - pagado where estado != pagado)
+  const saldoReal=(o.cuotas||[]).filter(c=>c.estado!=='pagado').reduce((s,c)=>s+Math.max((+c.valor_esperado)-(+c.valor_pagado),0),0);
   const col=esMio?'var(--green)':'var(--red)';
   const segCol=SEGCOL[o.segmento||'']||'#5a8a6f';
-  const pct=+o.monto_total>0?Math.min(pag/+o.monto_total*100,100):0;
+  const pct=+o.monto_total>0?Math.min(pagTot/+o.monto_total*100,100):0;
 
   let h='';
   h+=`<h3>${o.nombre} <span class="mx" data-action="close-modal">×</span></h3>`;
@@ -592,43 +570,39 @@ async function vObl(id,esMio){
   h+=`<span class="badge bm">${o.estado}</span>`;
   h+=`</div>`;
   if(o.deudor_nombre) h+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">👤 <b>${o.deudor_nombre}</b></div>`;
-
   h+=`<div class="g3" style="margin-bottom:12px">`;
-  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">TOTAL</div><div style="font-weight:800;font-size:17px">${fmt(+o.monto_total)}</div></div>`;
-  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">PAGADO</div><div style="font-weight:800;font-size:17px;color:var(--green)">${fmt(pag)}</div></div>`;
-  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">SALDO</div><div style="font-weight:800;font-size:17px;color:${col}">${fmt(sal)}</div></div>`;
+  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">TOTAL</div><div style="font-weight:800;font-size:16px">${fmt(+o.monto_total)}</div></div>`;
+  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">PAGADO</div><div style="font-weight:800;font-size:16px;color:var(--green)">${fmt(pagTot)}</div></div>`;
+  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">SALDO</div><div style="font-weight:800;font-size:16px;color:${col}">${fmt(saldoReal)}</div></div>`;
   h+=`</div>`;
   h+=`<div class="pw"><div class="pb" style="width:${pct}%;background:${col}"></div></div>`;
   h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:14px">${pct.toFixed(1)}% pagado</div>`;
-
   if(o.notas) h+=`<div style="background:var(--amber-bg);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--amber);margin-bottom:14px;white-space:pre-line">${o.notas}</div>`;
 
-  // Detalle completo de cuotas / historial
   const cuotas=(o.cuotas||[]).slice().sort((a,b)=>(a.numero||0)-(b.numero||0));
-  h+=`<div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px">DETALLE DE CONCEPTOS Y PAGOS</div>`;
-
+  h+=`<div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px">DETALLE COMPLETO (${cuotas.length} conceptos)</div>`;
   if(!cuotas.length){
     h+=`<div class="empty"><p>Sin conceptos registrados.</p></div>`;
   } else {
-    h+=`<div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">`;
-    h+=`<table><tr><th>#</th><th>Concepto</th><th>Fecha</th><th>Esperado</th><th>Pagado</th><th>Estado</th>${esMio?'<th></th>':''}</tr>`;
+    h+=`<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">`;
+    h+=`<table><tr><th>#</th><th>Concepto</th><th>Fecha</th><th class="num">Esperado</th><th class="num">Pagado</th><th>Estado</th>${esMio?'<th></th>':''}</tr>`;
     cuotas.forEach(c=>{
       const pend=Math.max((+c.valor_esperado||0)-(+c.valor_pagado||0),0);
       const estBadge=c.estado==='pagado'?'bg':c.estado==='revisar'?'ba':'br';
-      const pagadoColor=c.estado==='pagado'?'pos':(+c.valor_pagado>0?'warn':'neg');
-      h+=`<tr class="${c.estado!=='pagado'?'':''}">`;
-      h+=`<td style="font-size:11.5px;color:var(--muted)">${c.numero||'—'}</td>`;
-      h+=`<td><div style="font-weight:600;font-size:13px">${c.concepto}</div>`;
-      if(c.nota) h+=`<div style="font-size:11px;color:var(--amber)">${c.nota}</div>`;
+      const rowStyle=c.estado==='pagado'?'opacity:.7':'';
+      h+=`<tr style="${rowStyle}">`;
+      h+=`<td style="font-size:11px;color:var(--muted)">${c.numero||'—'}</td>`;
+      h+=`<td><div style="font-weight:600;font-size:12.5px">${c.concepto}</div>`;
+      if(c.nota)h+=`<div style="font-size:11px;color:var(--amber);margin-top:2px">${c.nota}</div>`;
       h+=`</td>`;
-      h+=`<td style="font-size:12px;white-space:nowrap">${c.fecha_prog?c.fecha_prog.slice(0,7):ff(c.fecha_pago)}</td>`;
-      h+=`<td class="num" style="font-size:13px">${fmt(+c.valor_esperado)}</td>`;
-      h+=`<td class="num ${pagadoColor}" style="font-size:13px"><b>${fmt(+c.valor_pagado)}</b></td>`;
+      h+=`<td style="font-size:11.5px;white-space:nowrap">${c.fecha_prog?c.fecha_prog.slice(0,10):c.fecha_pago?ff(c.fecha_pago):'—'}</td>`;
+      h+=`<td class="num" style="font-size:12.5px">${fmt(+c.valor_esperado)}</td>`;
+      h+=`<td class="num ${c.estado==='pagado'?'pos':(+c.valor_pagado>0?'warn':'')}" style="font-size:12.5px"><b>${fmt(+c.valor_pagado)}</b></td>`;
       h+=`<td><span class="badge ${estBadge}" style="font-size:10px">${c.estado}</span></td>`;
       if(esMio){
         h+=`<td>${c.estado!=='pagado'
           ?`<button class="btn bfo xs" data-action="pagar-cuota" data-cuotaid="${c.id}" data-pend="${pend}">Pagar</button>`
-          :'<span style="color:var(--green);font-size:16px">✓</span>'}</td>`;
+          :'<span style="color:var(--green)">✓</span>'}</td>`;
       }
       h+=`</tr>`;
     });
@@ -642,20 +616,16 @@ async function vObl(id,esMio){
     h+=`<button class="btn bgh sm" data-action="toggle-obl">${o.estado==='activa'?'Cerrar':'Reabrir'}</button>`;
     h+=`<button class="btn bda sm" style="margin-left:auto" data-action="delete-obl">Eliminar</button>`;
     h+=`</div>`;
-  } else {
-    h+=`<p style="font-size:12px;color:var(--muted);margin-top:12px">Solo el titular puede registrar pagos.</p>`;
   }
-
   openM(h);
 }
 
-// ── Registrar pago en cuota ───────────────────────────────
 function mPagCuota(cid,sug,oblId){
   openM(`<h3>Registrar pago <span class="mx" onclick="closeM()">×</span></h3>
-  <div class="ff"><label>Valor a pagar ($)</label><input id="pv" type="number" step="0.01" value="${sug.toFixed(2)}"></div>
+  <div class="ff"><label>Valor ($)</label><input id="pv" type="number" step="0.01" value="${sug.toFixed(2)}"></div>
   <div class="ff"><label>Fecha del pago</label><input id="pf" type="date" value="${hoy()}"></div>
-  <div class="ff"><label>Nota (transferencia, referencia, etc.)</label><input id="pn" placeholder="Opcional…"></div>
-  <div class="ff"><label>Marcar como</label><select id="pe"><option value="pagado">Pagado completo</option><option value="pendiente">Abono parcial</option></select></div>
+  <div class="ff"><label>Nota (referencia, transferencia…)</label><input id="pn" placeholder="Opcional"></div>
+  <div class="ff"><label>Marcar como</label><select id="pe"><option value="pagado">Pagado completo</option><option value="revisar">Abono parcial</option></select></div>
   <button class="btn bfo" style="width:100%" id="btn-sav-pag">Confirmar pago</button>`);
   document.getElementById('btn-sav-pag').onclick=async()=>{
     const v=+document.getElementById('pv').value;
@@ -666,15 +636,14 @@ function mPagCuota(cid,sug,oblId){
       estado:document.getElementById('pe').value
     }).eq('id',cid);
     toast('Pago registrado ✓');
-    if(oblId) vObl(oblId,true);else closeM();
+    if(oblId){await vObl(oblId,true)}else closeM();
     rO();
   };
 }
 
-// ── Agregar concepto/ítem ─────────────────────────────────
 function mAddCuota(oid){
   openM(`<h3>Agregar concepto <span class="mx" onclick="closeM()">×</span></h3>
-  <div class="ff"><label>Concepto / descripción</label><input id="ac" placeholder="Ej: Mant. junio, cuota 3, etc."></div>
+  <div class="ff"><label>Concepto / descripción</label><input id="ac" placeholder="Ej: Cuota 22, Gasto mant., etc."></div>
   <div class="f2">
     <div class="ff"><label>Valor esperado ($)</label><input id="av" type="number" step="0.01"></div>
     <div class="ff"><label>Fecha</label><input id="af" type="date"></div>
@@ -685,19 +654,18 @@ function mAddCuota(oid){
     const c=document.getElementById('ac').value.trim(),v=+document.getElementById('av').value;
     if(!c||!v)return toast('⚠ Completa concepto y valor');
     const{data:last}=await SB.from('cuotas').select('numero').eq('obligacion_id',oid).order('numero',{ascending:false}).limit(1).maybeSingle();
-    await SB.from('cuotas').insert({obligacion_id:oid,numero:(last?.numero||0)+1,concepto:c,valor_esperado:v,fecha_prog:document.getElementById('af').value||null,nota:document.getElementById('an').value||null});
+    await SB.from('cuotas').insert({obligacion_id:oid,numero:(last?.numero||0)+1,concepto:c,valor_esperado:v,fecha_prog:document.getElementById('af').value||null,nota:document.getElementById('an').value||null,estado:'pendiente'});
     toast('Concepto agregado ✓');vObl(oid,true);
   };
 }
 
-// ── Editar obligación ─────────────────────────────────────
-function mEditObl(id,persona,seg,desc){
+function mEditObl(id,persona,seg,notas){
   openM(`<h3>Editar obligación <span class="mx" onclick="closeM()">×</span></h3>
-  <div class="ff"><label>Persona / deudor</label><input id="ep" value="${persona}"></div>
+  <div class="ff"><label>Persona</label><input id="ep" value="${persona}"></div>
   <div class="ff"><label>Segmento</label><select id="es">
     ${['Créditos Bancarios','Avances / Tarjetas','Préstamos Personales','Gastos Compartidos'].map(s=>`<option ${s===seg?'selected':''}>${s}</option>`).join('')}
   </select></div>
-  <div class="ff"><label>Descripción / notas</label><textarea id="en" rows="2">${desc}</textarea></div>
+  <div class="ff"><label>Notas</label><textarea id="en" rows="2">${notas}</textarea></div>
   <button class="btn bfo" style="width:100%" id="btn-sav-edit-obl">Guardar</button>`);
   document.getElementById('btn-sav-edit-obl').onclick=async()=>{
     await SB.from('obligaciones').update({
@@ -711,24 +679,24 @@ function mEditObl(id,persona,seg,desc){
 
 async function togObl(id,est){
   await SB.from('obligaciones').update({estado:est==='activa'?'cerrada':'activa'}).eq('id',id);
-  toast(est==='activa'?'Obligación cerrada':'Reabierta ✓');closeM();rO();
+  toast(est==='activa'?'Cerrada':'Reabierta ✓');closeM();rO();
 }
 
-// ── Nueva obligación ──────────────────────────────────────
 function mNuevaObl(){
+  oblDir='me_deben';
   openM(`<h3>Nueva obligación <span class="mx" onclick="closeM()">×</span></h3>
   <div class="ff"><label>Tipo</label>
     <div style="display:flex;border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
-      <button id="dir-md" class="dir-btn" style="background:var(--green-bg);color:var(--green)" onclick="setOblDir('me_deben')">💚 Me deben</button>
-      <button id="dir-ld" class="dir-btn" style="background:var(--cream);color:var(--muted)" onclick="setOblDir('le_debo')">🔴 Le debo</button>
+      <button id="dir-md" class="dir-btn" style="background:var(--green-bg);color:var(--green);border:none;flex:1;padding:10px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit" onclick="setOblDir('me_deben')">💚 Me deben</button>
+      <button id="dir-ld" class="dir-btn" style="background:var(--cream);color:var(--muted);border:none;flex:1;padding:10px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit" onclick="setOblDir('le_debo')">🔴 Le debo</button>
     </div>
   </div>
-  <div class="ff"><label>Nombre del registro</label><input id="on" placeholder="Préstamo enero, Gastos vehículo…"></div>
+  <div class="ff"><label>Nombre del registro</label><input id="on" placeholder="Préstamo enero, Gastos compartidos…"></div>
   <div class="ff"><label>Segmento</label><select id="oseg">
     <option>Préstamos Personales</option><option>Créditos Bancarios</option><option>Avances / Tarjetas</option><option>Gastos Compartidos</option>
   </select></div>
-  <div class="ff"><label>Nombre de la persona</label><input id="onp" placeholder="Juan Pérez"></div>
-  <div class="ff"><label>Email (si está registrado en la plataforma)</label><input id="oe" type="email" placeholder="correo@ejemplo.com (opcional)"></div>
+  <div class="ff"><label id="lbl-persona">Nombre del deudor (quien te debe)</label><input id="onp" placeholder="Juan Pérez"></div>
+  <div class="ff"><label>Email (si está en la plataforma)</label><input id="oe" type="email" placeholder="correo@ejemplo.com (opcional)"></div>
   <div class="f2">
     <div class="ff"><label>Monto total ($)</label><input id="om" type="number" step="0.01"></div>
     <div class="ff"><label>Fecha inicio</label><input id="ofi" type="date" value="${hoy()}"></div>
@@ -744,9 +712,17 @@ function mNuevaObl(){
 
 function setOblDir(d){
   oblDir=d;
-  const md=document.getElementById('dir-md'), ld=document.getElementById('dir-ld');
-  if(d==='me_deben'){md.style.background='var(--green-bg)';md.style.color='var(--green)';ld.style.background='var(--cream)';ld.style.color='var(--muted)'}
-  else{ld.style.background='var(--red-bg)';ld.style.color='var(--red)';md.style.background='var(--cream)';md.style.color='var(--muted)'}
+  const md=document.getElementById('dir-md'), ld2=document.getElementById('dir-ld');
+  const lbl=document.getElementById('lbl-persona');
+  if(d==='me_deben'){
+    md.style.background='var(--green-bg)';md.style.color='var(--green)';
+    ld2.style.background='var(--cream)';ld2.style.color='var(--muted)';
+    if(lbl)lbl.textContent='Nombre del deudor (quien te debe)';
+  } else {
+    ld2.style.background='var(--red-bg)';ld2.style.color='var(--red)';
+    md.style.background='var(--cream)';md.style.color='var(--muted)';
+    if(lbl)lbl.textContent='Nombre del acreedor (a quien le debes)';
+  }
 }
 
 async function savNuevaObl(){
@@ -756,32 +732,27 @@ async function savNuevaObl(){
   const nombreP=document.getElementById('onp').value.trim();
   const email=document.getElementById('oe').value.trim().toLowerCase();
   const f=document.getElementById('ofi').value;
+  const notas=document.getElementById('ono').value||'';
   if(!nom||!m)return toast('⚠ Nombre y monto requeridos');
   const uid=U.id;
-
-  // Si es "le debo", titular es el otro y yo soy deudor — modelado como titular=uid por ahora
-  // con flag en deudor_nombre y notas para claridad
-  const nota=(document.getElementById('ono').value||'')+(email?`\nDeudor: ${nombreP||email} (${email})`:'');
-
+  const esDeuPropia=oblDir==='le_debo';
   const{data:obl,error}=await SB.from('obligaciones').insert({
     titular_id:uid,
-    deudor_id:uid, // se actualiza cuando el deudor se registra y acepta
+    deudor_id:uid,
     nombre:nom,
     descripcion:seg,
     segmento:seg,
     deudor_nombre:nombreP,
-    deudor_email:email,
+    deudor_email:email||null,
     monto_total:m,
     fecha_inicio:f,
     num_cuotas:+document.getElementById('oq').value||null,
     valor_cuota:+document.getElementById('ovc').value||null,
-    notas:nota,
+    notas:notas+(esDeuPropia?'\n[Le debo a: '+nombreP+']':''),
     estado:'activa',
-    es_deuda_propia:oblDir==='le_debo'  // flag para mostrar como "le debo"
+    es_deuda_propia:esDeuPropia
   }).select().single();
-
   if(error)return toast('Error: '+error.message);
-
   const nc=+document.getElementById('oq').value;
   if(nc>0){
     const vc=+document.getElementById('ovc').value||m/nc;
@@ -795,15 +766,14 @@ async function savNuevaObl(){
   } else {
     await SB.from('cuotas').insert({obligacion_id:obl.id,numero:1,concepto:'Saldo pendiente',valor_esperado:m,valor_pagado:0,estado:'pendiente'});
   }
-
   if(email) await SB.from('invitaciones').insert({remitente_id:uid,destinatario_email:email,obligacion_id:obl.id}).catch(()=>{});
-
-  toast('Obligación creada ✓'+(email?` — notificación pendiente a ${email}`:''));
+  toast('Obligación creada ✓'+(esDeuPropia?' (Le debo)':' (Me deben)'));
   closeM();rO();
 }
 
 // ══════════════════════════════════════════════════════════
-// CRÉDITO QS — filtro por responsable, tiempo real
+// CRÉDITO QS — 4 tarjetas, clic abre modal por responsable
+// Tiempo real, sin tabla inferior
 // ══════════════════════════════════════════════════════════
 
 async function rQS(){
@@ -822,183 +792,194 @@ async function rQS(){
   const{data:pagos}=await SB.from('qs_pagos')
     .select('*').in('qs_credito_id',credIds).order('mes',{ascending:false});
 
-  const pagadorMap={};
-  creditos.forEach(c=>c.qs_pagadores.forEach(p=>{
-    pagadorMap[p.id]={nombre:p.nombre,credito:c.responsable,creditoId:c.id,cuotaNom:+c.cuota_nominal};
-  }));
-
   const resumen=creditos.map(c=>{
     const pp=(pagos||[]).filter(p=>p.qs_credito_id===c.id);
     const totalPagado=pp.reduce((a,p)=>a+(+p.valor),0);
     const saldo=Math.max(+c.capital_total-totalPagado,0);
     const pct=+c.capital_total>0?Math.min(totalPagado/+c.capital_total*100,100):0;
-    return{...c,totalPagado,saldo,pct};
+    return{...c,totalPagado,saldo,pct,pagos:pp};
   });
 
   const granTotal=resumen.reduce((a,c)=>a+(+c.capital_total),0);
   const granPagado=resumen.reduce((a,c)=>a+c.totalPagado,0);
   const granSaldo=granTotal-granPagado;
 
-  // Meses disponibles
+  let h='';
+  h+=`<div class="g3" style="margin-bottom:24px">`;
+  h+=`<div class="sc"><div class="sl">Capital total</div><div class="sv">${fmt(granTotal)}</div></div>`;
+  h+=`<div class="sc"><div class="sl">Total pagado</div><div class="sv pos">${fmt(granPagado)}</div></div>`;
+  h+=`<div class="sc"><div class="sl">Saldo pendiente</div><div class="sv warn">${fmt(granSaldo)}</div></div>`;
+  h+=`</div>`;
+
+  h+=`<div style="font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px">Haz clic en cada crédito para ver el detalle de pagos</div>`;
+
+  h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">`;
+  resumen.forEach(c=>{
+    const pagadores=c.qs_pagadores.map(p=>p.nombre).join(' + ');
+    const ultimoPago=c.pagos[0];
+    const d=ultimoPago?new Date(ultimoPago.mes+'T12:00:00'):null;
+    const ultimoLabel=d?mesN(d.getMonth()+1)+' '+d.getFullYear():'Sin pagos';
+    h+=`<div class="card" style="cursor:pointer;transition:.15s;border-left:4px solid var(--forest3)" onclick="vQSCredito('${c.id}')" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 32px rgba(26,58,42,.14)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">`;
+    h+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">`;
+    h+=`<div>`;
+    h+=`<div style="font-size:18px;font-weight:800;color:var(--forest)">${c.responsable}</div>`;
+    h+=`<div style="font-size:12px;color:var(--muted);margin-top:2px">Pagador(es): <b>${pagadores}</b></div>`;
+    h+=`</div>`;
+    h+=`<div style="text-align:right">`;
+    h+=`<div style="font-size:20px;font-weight:800;color:${c.saldo>0?'var(--amber)':'var(--green)'}">${fmt(c.saldo)}</div>`;
+    h+=`<div style="font-size:10px;color:var(--muted)">${c.saldo>0?'pendiente':'al día'}</div>`;
+    h+=`</div></div>`;
+    h+=`<div class="pw"><div class="pb" style="width:${c.pct}%;background:var(--forest3)"></div></div>`;
+    h+=`<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:6px">`;
+    h+=`<span>${fmt(c.totalPagado)} de ${fmt(+c.capital_total)}</span>`;
+    h+=`<span>${c.pct.toFixed(0)}%</span></div>`;
+    h+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">`;
+    h+=`<span style="font-size:11.5px;color:var(--muted)">Último pago: <b>${ultimoLabel}</b></span>`;
+    h+=`<span style="font-size:11.5px;color:var(--forest3);font-weight:600">${c.pagos.length} registros →</span>`;
+    h+=`</div></div>`;
+  });
+  h+=`</div>`;
+  $('#main').innerHTML=h;
+  // Store creditos globally for modal access
+  window._qsCreditos=creditos;
+  window._qsPagos=pagos||[];
+}
+
+async function vQSCredito(creditoId){
+  const credito=window._qsCreditos?.find(c=>c.id===creditoId);
+  if(!credito)return;
+  openM(ld());
+
+  // Fetch fresh pagos for this credito
+  const{data:pagos}=await SB.from('qs_pagos')
+    .select('*').eq('qs_credito_id',creditoId).order('mes',{ascending:false});
+
+  const totalPagado=(pagos||[]).reduce((a,p)=>a+(+p.valor),0);
+  const saldo=Math.max(+credito.capital_total-totalPagado,0);
+  const pct=+credito.capital_total>0?Math.min(totalPagado/+credito.capital_total*100,100):0;
+  const pagadores=credito.qs_pagadores.map(p=>p.nombre).join(' + ');
+
+  // Build pagador map
+  const pagMap={};
+  credito.qs_pagadores.forEach(p=>pagMap[p.id]=p.nombre);
+
+  // Month selector — from inicio to now+3
   const hoy2=new Date();
   const mesesDisp=[];
-  let cur=new Date(2025,4,1); // mayo 2025
+  let cur=new Date(credito.fecha_inicio+'T12:00:00');
+  cur=new Date(cur.getFullYear(),cur.getMonth(),1);
   const lim=new Date(hoy2.getFullYear(),hoy2.getMonth()+3,1);
   while(cur<=lim){
     mesesDisp.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-01`);
     cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
   }
-  if(!qsMesSel) qsMesSel=`${hoy2.getFullYear()}-${String(hoy2.getMonth()+1).padStart(2,'0')}-01`;
-
-  // Crédito filtrado actualmente
-  const credFiltrado=qsFiltro?creditos.find(c=>c.id===qsFiltro)||creditos[0]:null;
+  const mesSel=`${hoy2.getFullYear()}-${String(hoy2.getMonth()+1).padStart(2,'0')}-01`;
 
   let h='';
-  // Tarjetas resumen
-  h+=`<div class="g3" style="margin-bottom:20px">`;
-  h+=`<div class="sc"><div class="sl">Capital total (4 créditos)</div><div class="sv">${fmt(granTotal)}</div></div>`;
-  h+=`<div class="sc"><div class="sl">Total pagado</div><div class="sv pos">${fmt(granPagado)}</div></div>`;
-  h+=`<div class="sc"><div class="sl">Saldo pendiente</div><div class="sv warn">${fmt(granSaldo)}</div></div>`;
-  h+=`</div>`;
+  h+=`<h3>${credito.responsable} — Crédito QS <span class="mx" onclick="closeM()">×</span></h3>`;
 
-  // Tarjetas por responsable (clicables para filtrar)
-  h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:22px">`;
-  resumen.forEach(c=>{
-    const sel=qsFiltro===c.id;
-    h+=`<div class="card" style="cursor:pointer;border:2px solid ${sel?'var(--forest)':'var(--border)'}" onclick="qsFiltro='${c.id}';rQS()">`;
-    h+=`<div style="display:flex;justify-content:space-between;align-items:flex-start">`;
-    h+=`<div><div style="font-weight:700;font-size:15px">${c.responsable}</div>`;
-    h+=`<div style="font-size:11px;color:var(--muted);margin-top:2px">${c.qs_pagadores.map(p=>p.nombre).join(' + ')}</div></div>`;
-    h+=`<div style="text-align:right"><div style="font-size:16px;font-weight:800;color:var(--amber)">${fmt(c.saldo)}</div>`;
-    h+=`<div style="font-size:10px;color:var(--muted)">pendiente</div></div></div>`;
-    h+=`<div class="pw" style="margin-top:8px"><div class="pb" style="width:${c.pct}%;background:var(--forest3)"></div></div>`;
-    h+=`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">`;
-    h+=`<span>${fmt(c.totalPagado)} de ${fmt(+c.capital_total)}</span><span>${c.pct.toFixed(0)}%</span></div>`;
-    h+=`</div>`;
-  });
+  // Summary cards
+  h+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">`;
+  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">CAPITAL</div><div style="font-weight:800;font-size:16px">${fmt(+credito.capital_total)}</div></div>`;
+  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">PAGADO</div><div style="font-weight:800;font-size:16px;color:var(--green)">${fmt(totalPagado)}</div></div>`;
+  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">SALDO</div><div style="font-weight:800;font-size:16px;color:var(--amber)">${fmt(saldo)}</div></div>`;
   h+=`</div>`;
+  h+=`<div class="pw" style="margin-bottom:6px"><div class="pb" style="width:${pct}%;background:var(--forest3)"></div></div>`;
+  h+=`<div style="font-size:11.5px;color:var(--muted);margin-bottom:16px">${pct.toFixed(1)}% pagado · Pagadores: <b>${pagadores}</b></div>`;
 
-  // Panel de registro
-  h+=`<div class="card" style="margin-bottom:20px" id="qs-registro-panel">`;
-  h+=`<div class="ctit">Registrar pagos del mes</div>`;
-  h+=`<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">`;
-  h+=`<div class="ff" style="flex:1;min-width:160px;margin-bottom:0"><label>Mes</label>`;
-  h+=`<select id="qs-mes-sel">`;
+  // Register new payment
+  h+=`<div style="background:var(--cream);border-radius:12px;padding:14px;margin-bottom:16px">`;
+  h+=`<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;letter-spacing:.4px;text-transform:uppercase">Registrar pago</div>`;
+  h+=`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">`;
+  h+=`<div style="flex:1;min-width:130px"><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">MES</label>`;
+  h+=`<select id="qs-mes-modal" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;background:#fff">`;
   mesesDisp.slice().reverse().forEach(m=>{
-    const d=new Date(m+'T12:00:00');
-    h+=`<option value="${m}" ${m===qsMesSel?'selected':''}>${mesN(d.getMonth()+1)} ${d.getFullYear()}</option>`;
+    const d2=new Date(m+'T12:00:00');
+    h+=`<option value="${m}" ${m===mesSel?'selected':''}>${mesN(d2.getMonth()+1)} ${d2.getFullYear()}</option>`;
   });
   h+=`</select></div>`;
-  h+=`<div class="ff" style="flex:1;min-width:160px;margin-bottom:0"><label>Crédito / responsable</label>`;
-  h+=`<select id="qs-cred-sel">`;
-  h+=`<option value="">— Todos —</option>`;
-  creditos.forEach(c=>{
-    h+=`<option value="${c.id}" ${qsFiltro===c.id?'selected':''}>${c.responsable}</option>`;
-  });
+  h+=`<div style="flex:1;min-width:130px"><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">PAGADOR</label>`;
+  h+=`<select id="qs-pag-modal" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;background:#fff">`;
+  credito.qs_pagadores.forEach(pg=>{h+=`<option value="${pg.id}">${pg.nombre}</option>`;});
   h+=`</select></div>`;
-  h+=`</div>`;
-  h+=`<div id="qs-form-mes"></div>`;
-  h+=`</div>`;
+  h+=`<div style="flex:1;min-width:110px"><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">VALOR ($)</label>`;
+  h+=`<input type="number" id="qs-val-modal" step="0.01" placeholder="${(+credito.cuota_nominal/credito.qs_pagadores.length).toFixed(2)}" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;background:#fff"></div>`;
+  h+=`<button class="btn bfo" id="btn-qs-guardar-modal" data-creditoid="${creditoId}">Guardar</button>`;
+  h+=`</div></div>`;
 
-  // Tabla histórica
-  h+=`<div class="card">`;
-  h+=`<div class="ctit">Histórico completo`;
-  if(qsFiltro){
-    const cred=creditos.find(c=>c.id===qsFiltro);
-    h+=` — <span class="badge bb">${cred?.responsable||''}</span>`;
-    h+=` <button class="btn bgh xs" onclick="qsFiltro=null;rQS()">Ver todos</button>`;
-  }
-  h+=`</div>`;
-
-  const pagosVis=qsFiltro?(pagos||[]).filter(p=>p.qs_credito_id===qsFiltro):(pagos||[]);
-
-  h+=`<div class="tw" style="max-height:400px;overflow-y:auto">`;
-  h+=`<table><tr><th>Mes</th><th>Crédito</th><th>Pagador</th><th class="num">Valor</th><th></th></tr>`;
-  pagosVis.forEach(p=>{
-    const pi=pagadorMap[p.qs_pagador_id]||{};
-    const d=new Date(p.mes+'T12:00:00');
-    h+=`<tr><td style="font-size:12px;white-space:nowrap">${mesN(d.getMonth()+1)} ${d.getFullYear()}</td>`;
-    h+=`<td><span class="badge bm" style="font-size:10px">${pi.credito||'?'}</span></td>`;
-    h+=`<td>${pi.nombre||'?'}</td>`;
-    h+=`<td class="num pos"><b>${fmt(p.valor)}</b></td>`;
-    h+=`<td><button class="btn bgh xs" data-action="qs-edit" data-id="${p.id}" data-val="${p.valor}" data-pag="${pi.nombre||''}">✏</button></td></tr>`;
-  });
-  if(!pagosVis.length) h+=`<tr><td colspan="5" class="empty">Sin pagos registrados.</td></tr>`;
-  h+=`</table></div></div>`;
-
-  $('#main').innerHTML=h;
-
-  // Event listeners
-  document.getElementById('qs-mes-sel').addEventListener('change',e=>{qsMesSel=e.target.value;rQS()});
-  document.getElementById('qs-cred-sel').addEventListener('change',e=>{qsFiltro=e.target.value||null;rQS()});
-
-  renderQSForm();
-
-  function renderQSForm(){
-    // Actualizar el select si vino desde tarjeta
-    const sel=document.getElementById('qs-cred-sel');
-    if(sel&&qsFiltro) sel.value=qsFiltro;
-    else if(sel&&!qsFiltro) sel.value='';
-
-    const fm=document.getElementById('qs-form-mes');
-    if(!fm)return;
-    const credsAMostrar=qsFiltro?creditos.filter(c=>c.id===qsFiltro):creditos;
-    let fh=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">`;
-    credsAMostrar.forEach(c=>{
-      c.qs_pagadores.forEach(pg=>{
-        const pago=(pagos||[]).find(p=>p.qs_pagador_id===pg.id&&p.mes===qsMesSel);
-        const yaRegistrado=!!pago;
-        fh+=`<div style="background:${yaRegistrado?'var(--green-bg)':'var(--cream)'};border-radius:10px;padding:12px;border:1.5px solid ${yaRegistrado?'var(--green)':'var(--border)'}">`;
-        fh+=`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">${c.responsable} — ${pg.nombre}</div>`;
-        if(yaRegistrado) fh+=`<div style="font-size:11px;color:var(--green);margin-bottom:6px">✓ Registrado: ${fmt(pago.valor)}</div>`;
-        fh+=`<div style="display:flex;gap:6px;align-items:center">`;
-        fh+=`<input type="number" step="0.01" id="qsv-${pg.id}" value="${pago?pago.valor:''}" placeholder="${(+c.cuota_nominal/c.qs_pagadores.filter(x=>x.qs_credito_id===c.id).length).toFixed(2)}" style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:6px 9px;font-size:13px;background:#fff">`;
-        fh+=`<button class="btn bfo xs" data-action="qs-guardar" data-pagadorid="${pg.id}" data-creditoid="${c.id}">${yaRegistrado?'Actualizar':'Guardar'}</button>`;
-        fh+=`</div></div>`;
-      });
+  // Payment history table
+  h+=`<div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;margin-bottom:10px">Historial de pagos (${(pagos||[]).length} registros)</div>`;
+  if(!(pagos||[]).length){
+    h+=`<div class="empty"><p>Sin pagos registrados para este crédito.</p></div>`;
+  } else {
+    h+=`<div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">`;
+    h+=`<table><tr><th>Mes</th><th>Pagador</th><th class="num">Valor</th><th></th></tr>`;
+    (pagos||[]).forEach(p=>{
+      const d2=new Date(p.mes+'T12:00:00');
+      const pnombre=pagMap[p.qs_pagador_id]||'?';
+      h+=`<tr>`;
+      h+=`<td style="font-size:13px;font-weight:600">${mesN(d2.getMonth()+1)} ${d2.getFullYear()}</td>`;
+      h+=`<td>${pnombre}</td>`;
+      h+=`<td class="num pos"><b>${fmt(p.valor)}</b></td>`;
+      h+=`<td><button class="btn bgh xs" data-action="qs-edit-modal" data-pagoid="${p.id}" data-val="${p.valor}" data-pag="${pnombre}">✏</button></td>`;
+      h+=`</tr>`;
     });
-    fh+=`</div>`;
-    fm.innerHTML=fh;
+    h+=`</table></div>`;
   }
+
+  openM(h);
+
+  // Attach save handler
+  document.getElementById('btn-qs-guardar-modal').onclick=async function(){
+    const mes=document.getElementById('qs-mes-modal').value;
+    const pagadorId=document.getElementById('qs-pag-modal').value;
+    const v=+document.getElementById('qs-val-modal').value;
+    if(!v){toast('⚠ Ingresa el valor');return}
+    const btn=this; btn.disabled=true; btn.textContent='Guardando…';
+    const{error}=await SB.from('qs_pagos').upsert({
+      qs_credito_id:creditoId,
+      qs_pagador_id:pagadorId,
+      mes:mes,
+      valor:v
+    },{onConflict:'qs_pagador_id,mes'});
+    if(error){toast('Error: '+error.message);btn.disabled=false;btn.textContent='Guardar';return}
+    toast('Pago registrado ✓');
+    // Refresh modal + main view
+    await rQS();
+    vQSCredito(creditoId);
+  };
 }
 
-// Delegación QS
+// Delegación para editar/eliminar pagos dentro del modal
 document.addEventListener('click', async e=>{
-  const btnG=e.target.closest('[data-action="qs-guardar"]');
-  if(btnG){
-    const pagadorId=btnG.dataset.pagadorid, creditoId=btnG.dataset.creditoid;
-    const inp=document.getElementById('qsv-'+pagadorId);
-    const v=+inp?.value;
-    if(!v){toast('⚠ Ingresa un valor');return}
-    const{data:upsResult,error}=await SB.from('qs_pagos').upsert({
-      qs_credito_id:creditoId,qs_pagador_id:pagadorId,mes:qsMesSel,valor:v
-    },{onConflict:'qs_pagador_id,mes'}).select();
-    if(error){toast('Error: '+error.message);return}
-    toast(upsResult?.length?'Pago guardado ✓':'Pago actualizado ✓');
-    await rQS(); // refresh completo con await
-    return;
-  }
-  const btnE=e.target.closest('[data-action="qs-edit"]');
-  if(btnE){
-    const pid=btnE.dataset.id, val=btnE.dataset.val, pag=btnE.dataset.pag;
-    openM(`<h3>Editar pago — ${pag} <span class="mx" onclick="closeM()">×</span></h3>
-    <div class="ff"><label>Valor ($)</label><input id="qsev" type="number" step="0.01" value="${val}"></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn bfo" style="flex:1" id="qs-sav-ed">Guardar</button>
-      <button class="btn bda" id="qs-del">Eliminar</button>
-    </div>`);
-    document.getElementById('qs-sav-ed').onclick=async()=>{
-      const v=+document.getElementById('qsev').value;
-      if(!v)return toast('⚠ Ingresa un valor');
-      await SB.from('qs_pagos').update({valor:v}).eq('id',pid);
-      toast('Actualizado ✓');closeM();rQS();
-    };
-    document.getElementById('qs-del').onclick=async()=>{
-      if(!confirm('¿Eliminar este pago?'))return;
-      await SB.from('qs_pagos').delete().eq('id',pid);
-      toast('Eliminado');closeM();rQS();
-    };
-  }
+  const btnE=e.target.closest('[data-action="qs-edit-modal"]');
+  if(!btnE)return;
+  const pagoId=btnE.dataset.pagoid;
+  const val=btnE.dataset.val;
+  const pag=btnE.dataset.pag;
+  // Mini inline edit — replace button with input+save+cancel
+  const td=btnE.parentElement;
+  td.innerHTML=`<div style="display:flex;gap:4px;align-items:center">
+    <input id="qsed-${pagoId}" type="number" step="0.01" value="${val}" style="width:80px;border:1.5px solid var(--border);border-radius:6px;padding:4px 7px;font-size:12px;font-family:inherit">
+    <button class="btn bfo xs" id="qsed-sav-${pagoId}">✓</button>
+    <button class="btn bda xs" id="qsed-del-${pagoId}">✕</button>
+  </div>`;
+  document.getElementById(`qsed-sav-${pagoId}`).onclick=async()=>{
+    const v=+document.getElementById(`qsed-${pagoId}`).value;
+    if(!v){toast('⚠ Valor inválido');return}
+    await SB.from('qs_pagos').update({valor:v}).eq('id',pagoId);
+    toast('Actualizado ✓');
+    // Find which credito to refresh
+    const{data:p}=await SB.from('qs_pagos').select('qs_credito_id').eq('id',pagoId).single();
+    if(p){await rQS();vQSCredito(p.qs_credito_id)}
+  };
+  document.getElementById(`qsed-del-${pagoId}`).onclick=async()=>{
+    if(!confirm('¿Eliminar este pago?'))return;
+    const{data:p}=await SB.from('qs_pagos').select('qs_credito_id').eq('id',pagoId).single();
+    await SB.from('qs_pagos').delete().eq('id',pagoId);
+    toast('Eliminado');
+    if(p){await rQS();vQSCredito(p.qs_credito_id)}
+  };
 });
 
 // ══════════════════════════════════════════════════════════
