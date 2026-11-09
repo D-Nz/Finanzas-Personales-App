@@ -209,6 +209,18 @@ const hoy=()=>new Date().toISOString().slice(0,10);
 const mesN=m=>['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m-1];
 const ff=d=>d?new Date(d+'T12:00:00').toLocaleDateString('es-EC',{day:'2-digit',month:'short',year:'numeric'}):'—';
 const ld=()=>'<div class="spin"></div>';
+
+// ── Cálculo único de obligaciones: todas las pantallas usan estas funciones ──
+// Pagado = todo lo abonado en sus cuotas, sin importar el estado de cada cuota
+// (un abono parcial también es dinero recibido).
+const r2=x=>Math.round((+x||0)*100)/100;
+const pagadoObl=o=>r2((o.cuotas||[]).reduce((s,c)=>s+(+c.valor_pagado||0),0));
+const saldoObl=o=>Math.max(r2(+o.monto_total-pagadoObl(o)),0);
+const avanceObl=o=>+o.monto_total>0?Math.min(pagadoObl(o)/+o.monto_total*100,100):0;
+// Dirección: "me deben" = la creé yo y no es deuda propia.
+// "le debo" = la creé yo como deuda propia, o alguien más me registró como deudor.
+const esMeDeben=(o,uid)=>o.titular_id===uid&&!o.es_deuda_propia;
+const esLeDebo=(o,uid)=>(o.titular_id===uid&&o.es_deuda_propia===true)||(o.deudor_id===uid&&o.titular_id!==uid);
 const SEGS=['Todos','Créditos Bancarios','Avances / Tarjetas','Préstamos Personales','Gastos Compartidos'];
 const SEGCOL={'Créditos Bancarios':'#2563eb','Avances / Tarjetas':'#b87c1a','Préstamos Personales':'#2e7d52','Gastos Compartidos':'#5a8a6f'};
 
@@ -322,9 +334,7 @@ async function rR(){
   ]);
   const tI=(ing||[]).reduce((a,r)=>a+(+r.valor),0);
   const tG=(gas||[]).reduce((a,r)=>a+(+r.valor),0);
-  const meDeben=(obls||[]).filter(o=>o.titular_id===uid).reduce((a,o)=>{
-    const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
-    return a+Math.max(+o.monto_total-p,0);},0);
+  const meDeben=(obls||[]).filter(o=>esMeDeben(o,uid)).reduce((a,o)=>a+saldoObl(o),0);
 
   const byCat={};
   (gas||[]).forEach(g=>{byCat[g.categoria]=(byCat[g.categoria]||0)+(+g.valor)});
@@ -370,13 +380,12 @@ async function rR(){
   ${(obls||[]).length?`<div class="card"><div class="ctit">Obligaciones activas <button class="btn bfo sm" onclick="goNav(document.querySelector('[data-v=obligaciones]'));rO()">Ver todas</button></div>
   <div class="tw"><table><tr><th>Concepto</th><th>Segmento</th><th>Persona</th><th>Saldo</th></tr>
   ${(obls||[]).slice(0,6).map(o=>{
-    const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
-    const s=Math.max(+o.monto_total-p,0);
-    return `<tr class="hv" data-oblid="${o.id}" data-esmio="${o.titular_id===uid}">
+    const s=saldoObl(o), cobro=esMeDeben(o,uid);
+    return `<tr class="hv" data-oblid="${o.id}">
       <td><b>${o.nombre}</b></td>
       <td><span class="badge bm" style="font-size:10px">${o.segmento||'—'}</span></td>
-      <td>${o.deudor_nombre||'—'}</td>
-      <td class="num pos">${fmt(s)}</td></tr>`;
+      <td>${cobro?'← ':'→ '}${o.deudor_nombre||'—'}</td>
+      <td class="num ${cobro?'pos':'neg'}">${fmt(s)}</td></tr>`;
   }).join('')}</table></div></div>`:''}`;
 
   setTimeout(()=>{
@@ -412,8 +421,7 @@ document.addEventListener('click', e=>{
   const card=e.target.closest('[data-oblid]');
   if(card && !e.target.closest('[data-action]') && !e.target.closest('button')){
     const id=card.getAttribute('data-oblid');
-    const esMio=card.getAttribute('data-esmio')==='true';
-    if(id) vObl(id,esMio);
+    if(id) vObl(id);
   }
 });
 
@@ -445,20 +453,13 @@ async function rO(){
   const cerr=(obls||[]).filter(o=>o.estado!=='activa');
   const filtAct=segV==='Todos'?act:act.filter(o=>(o.segmento||'')===segV);
 
-  // KEY FIX: "Me deben" = titular===uid AND es_deuda_propia is false/null
-  // "Le debo" = titular===uid AND es_deuda_propia===true  OR  deudor===uid AND titular!==uid
-  const meDeben=filtAct.filter(o=>o.titular_id===uid && !o.es_deuda_propia);
-  const leDebo=filtAct.filter(o=>(o.titular_id===uid && o.es_deuda_propia===true)||(o.deudor_id===uid&&o.titular_id!==uid));
+  const meDeben=filtAct.filter(o=>esMeDeben(o,uid));
+  const leDebo=filtAct.filter(o=>esLeDebo(o,uid));
 
-  function saldoObl(o){
-    // For "le debo" obligations: saldo = total - pagado (same formula)
-    const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
-    return Math.max(+o.monto_total-p,0);
-  }
   function oblCard(o,esMio){
     const sal=saldoObl(o);
-    const pag=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
-    const pct=+o.monto_total>0?Math.min(pag/+o.monto_total*100,100):0;
+    const pag=pagadoObl(o);
+    const pct=avanceObl(o);
     // For "me deben": persona = who owes me = deudor_nombre
     // For "le debo": persona = who I owe = deudor_nombre (they're the creditor)
     const persona=o.deudor_nombre||'—';
@@ -549,23 +550,25 @@ async function rO(){
   </div></details>`:''}`;
 }
 
-async function vObl(id,esMio){
+async function vObl(id){
   openM(ld());
   const{data:o}=await SB.from('obligaciones').select('*,cuotas(*)').eq('id',id).single();
-  CURRENT_OBL={...o,esMio};
+  // Dirección (color y etiqueta) y permiso de edición son cosas distintas:
+  // solo el titular puede registrar pagos (RLS), tanto en "me deben" como en "le debo".
+  const cobro=esMeDeben(o,U.id);
+  const puedeEditar=o.titular_id===U.id;
+  CURRENT_OBL={...o,esMio:puedeEditar};
 
-  // For display: calculate saldo only from non-pagado cuotas
-  const pagTot=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
-  // Real saldo = sum of pending items (esperado - pagado where estado != pagado)
-  const saldoReal=(o.cuotas||[]).filter(c=>c.estado!=='pagado').reduce((s,c)=>s+Math.max((+c.valor_esperado)-(+c.valor_pagado),0),0);
-  const col=esMio?'var(--green)':'var(--red)';
+  const pagTot=pagadoObl(o);
+  const saldo=saldoObl(o);
+  const col=cobro?'var(--green)':'var(--red)';
   const segCol=SEGCOL[o.segmento||'']||'#5a8a6f';
-  const pct=+o.monto_total>0?Math.min(pagTot/+o.monto_total*100,100):0;
+  const pct=avanceObl(o);
 
   let h='';
   h+=`<h3>${o.nombre} <span class="mx" data-action="close-modal">×</span></h3>`;
   h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">`;
-  h+=`<span class="badge ${esMio?'bg':'br'}">${esMio?'Me deben':'Le debo'}</span>`;
+  h+=`<span class="badge ${cobro?'bg':'br'}">${cobro?'Me deben':'Le debo'}</span>`;
   h+=`<span class="badge bm" style="border-left:3px solid ${segCol}">${o.segmento||'—'}</span>`;
   h+=`<span class="badge bm">${o.estado}</span>`;
   h+=`</div>`;
@@ -573,7 +576,7 @@ async function vObl(id,esMio){
   h+=`<div class="g3" style="margin-bottom:12px">`;
   h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">TOTAL</div><div style="font-weight:800;font-size:16px">${fmt(+o.monto_total)}</div></div>`;
   h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">PAGADO</div><div style="font-weight:800;font-size:16px;color:var(--green)">${fmt(pagTot)}</div></div>`;
-  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">SALDO</div><div style="font-weight:800;font-size:16px;color:${col}">${fmt(saldoReal)}</div></div>`;
+  h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">SALDO</div><div style="font-weight:800;font-size:16px;color:${col}">${fmt(saldo)}</div></div>`;
   h+=`</div>`;
   h+=`<div class="pw"><div class="pb" style="width:${pct}%;background:${col}"></div></div>`;
   h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:14px">${pct.toFixed(1)}% pagado</div>`;
@@ -585,7 +588,7 @@ async function vObl(id,esMio){
     h+=`<div class="empty"><p>Sin conceptos registrados.</p></div>`;
   } else {
     h+=`<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">`;
-    h+=`<table><tr><th>#</th><th>Concepto</th><th>Fecha</th><th class="num">Esperado</th><th class="num">Pagado</th><th>Estado</th>${esMio?'<th></th>':''}</tr>`;
+    h+=`<table><tr><th>#</th><th>Concepto</th><th>Fecha</th><th class="num">Esperado</th><th class="num">Pagado</th><th>Estado</th>${puedeEditar?'<th></th>':''}</tr>`;
     cuotas.forEach(c=>{
       const pend=Math.max((+c.valor_esperado||0)-(+c.valor_pagado||0),0);
       const estBadge=c.estado==='pagado'?'bg':c.estado==='revisar'?'ba':'br';
@@ -599,7 +602,7 @@ async function vObl(id,esMio){
       h+=`<td class="num" style="font-size:12.5px">${fmt(+c.valor_esperado)}</td>`;
       h+=`<td class="num ${c.estado==='pagado'?'pos':(+c.valor_pagado>0?'warn':'')}" style="font-size:12.5px"><b>${fmt(+c.valor_pagado)}</b></td>`;
       h+=`<td><span class="badge ${estBadge}" style="font-size:10px">${c.estado}</span></td>`;
-      if(esMio){
+      if(puedeEditar){
         h+=`<td>${c.estado!=='pagado'
           ?`<button class="btn bfo xs" data-action="pagar-cuota" data-cuotaid="${c.id}" data-pend="${pend}">Pagar</button>`
           :'<span style="color:var(--green)">✓</span>'}</td>`;
@@ -609,7 +612,7 @@ async function vObl(id,esMio){
     h+=`</table></div>`;
   }
 
-  if(esMio){
+  if(puedeEditar){
     h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
     h+=`<button class="btn bfo sm" data-action="add-cuota">＋ Concepto</button>`;
     h+=`<button class="btn bgh sm" data-action="edit-obl">✏ Editar</button>`;
@@ -620,23 +623,45 @@ async function vObl(id,esMio){
   openM(h);
 }
 
-function mPagCuota(cid,sug,oblId){
+async function mPagCuota(cid,sug,oblId){
+  openM(ld());
+  const{data:c,error:errC}=await SB.from('cuotas').select('*').eq('id',cid).single();
+  if(errC||!c){closeM();return toast('No se pudo abrir la cuota. Inténtalo de nuevo.',4000)}
+  const esperado=+c.valor_esperado||0, yaPagado=+c.valor_pagado||0;
+  const pend=Math.max(r2(esperado-yaPagado),0);
   openM(`<h3>Registrar pago <span class="mx" onclick="closeM()">×</span></h3>
-  <div class="ff"><label>Valor ($)</label><input id="pv" type="number" step="0.01" value="${sug.toFixed(2)}"></div>
+  <div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px">
+    <div style="font-weight:700;margin-bottom:4px">${c.concepto||'Cuota'}</div>
+    <div style="color:var(--muted)">Esperado ${fmt(esperado)} · Ya abonado ${fmt(yaPagado)} · Pendiente <b style="color:var(--text)">${fmt(pend)}</b></div>
+  </div>
+  <div class="ff"><label>Valor de este pago ($)</label><input id="pv" type="number" step="0.01" value="${pend.toFixed(2)}"></div>
+  <div id="pmsg" style="font-size:12.5px;color:var(--muted);margin:-6px 0 14px"></div>
   <div class="ff"><label>Fecha del pago</label><input id="pf" type="date" value="${hoy()}"></div>
   <div class="ff"><label>Nota (referencia, transferencia…)</label><input id="pn" placeholder="Opcional"></div>
-  <div class="ff"><label>Marcar como</label><select id="pe"><option value="pagado">Pagado completo</option><option value="revisar">Abono parcial</option></select></div>
   <button class="btn bfo" style="width:100%" id="btn-sav-pag">Confirmar pago</button>`);
+  const pv=document.getElementById('pv'), pmsg=document.getElementById('pmsg');
+  const aviso=()=>{
+    const v=+pv.value||0, queda=r2(esperado-yaPagado-v);
+    pmsg.textContent=v<=0?'':queda>0.004?`Abono parcial: la cuota queda con ${fmt(queda)} pendiente.`
+      :queda<-0.004?`El pago supera lo pendiente por ${fmt(-queda)}. La cuota queda pagada.`:'Con este pago la cuota queda pagada.';
+  };
+  pv.oninput=aviso; aviso();
   document.getElementById('btn-sav-pag').onclick=async()=>{
-    const v=+document.getElementById('pv').value;
-    if(!v)return toast('⚠ Ingresa el valor');
-    await SB.from('cuotas').update({
-      valor_pagado:v,fecha_pago:document.getElementById('pf').value,
-      nota:document.getElementById('pn').value,
-      estado:document.getElementById('pe').value
+    const v=r2(+pv.value);
+    if(!(v>0))return toast('⚠ Ingresa un valor mayor a cero');
+    const nuevo=r2(yaPagado+v);
+    // El estado se deduce del total abonado: completo = pagado; parcial = sigue pendiente
+    // (una cuota marcada "revisar" conserva esa marca hasta completarse).
+    const estado=nuevo>=esperado-0.004?'pagado':(c.estado==='revisar'?'revisar':'pendiente');
+    const notaNueva=document.getElementById('pn').value.trim();
+    const nota=notaNueva?(c.nota?c.nota+' · ':'')+notaNueva:(c.nota||'');
+    const btn=document.getElementById('btn-sav-pag');btn.disabled=true;btn.textContent='Guardando…';
+    const{error}=await SB.from('cuotas').update({
+      valor_pagado:nuevo,fecha_pago:document.getElementById('pf').value,nota,estado
     }).eq('id',cid);
-    toast('Pago registrado ✓');
-    if(oblId){await vObl(oblId,true)}else closeM();
+    if(error){btn.disabled=false;btn.textContent='Confirmar pago';return toast('No se pudo guardar el pago: '+error.message,5000)}
+    toast(estado==='pagado'?'Pago registrado ✓':'Abono registrado ✓');
+    if(oblId){await vObl(oblId)}else closeM();
     rO();
   };
 }
@@ -649,13 +674,22 @@ function mAddCuota(oid){
     <div class="ff"><label>Fecha</label><input id="af" type="date"></div>
   </div>
   <div class="ff"><label>Nota (opcional)</label><input id="an" placeholder="Detalle adicional…"></div>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:14px;cursor:pointer">
+    <input type="checkbox" id="ast" checked style="width:auto;margin-top:3px">
+    <span>Sumar este valor al monto total de la obligación<br><span style="color:var(--muted);font-size:12px">Desmárcalo si el concepto solo detalla una parte del monto que ya está registrado.</span></span>
+  </label>
   <button class="btn bfo" style="width:100%" id="btn-sav-item">Agregar</button>`);
   document.getElementById('btn-sav-item').onclick=async()=>{
     const c=document.getElementById('ac').value.trim(),v=+document.getElementById('av').value;
     if(!c||!v)return toast('⚠ Completa concepto y valor');
     const{data:last}=await SB.from('cuotas').select('numero').eq('obligacion_id',oid).order('numero',{ascending:false}).limit(1).maybeSingle();
-    await SB.from('cuotas').insert({obligacion_id:oid,numero:(last?.numero||0)+1,concepto:c,valor_esperado:v,fecha_prog:document.getElementById('af').value||null,nota:document.getElementById('an').value||null,estado:'pendiente'});
-    toast('Concepto agregado ✓');vObl(oid,true);
+    const{error}=await SB.from('cuotas').insert({obligacion_id:oid,numero:(last?.numero||0)+1,concepto:c,valor_esperado:v,fecha_prog:document.getElementById('af').value||null,nota:document.getElementById('an').value||null,estado:'pendiente'});
+    if(error)return toast('No se pudo agregar el concepto: '+error.message,5000);
+    if(document.getElementById('ast').checked){
+      const{data:ob}=await SB.from('obligaciones').select('monto_total').eq('id',oid).single();
+      if(ob) await SB.from('obligaciones').update({monto_total:r2(+ob.monto_total+v)}).eq('id',oid);
+    }
+    toast('Concepto agregado ✓');await vObl(oid);rO();
   };
 }
 
@@ -673,7 +707,7 @@ function mEditObl(id,persona,seg,notas){
       segmento:document.getElementById('es').value,
       notas:document.getElementById('en').value
     }).eq('id',id);
-    toast('Actualizado ✓');vObl(id,true);rO();
+    toast('Actualizado ✓');vObl(id);rO();
   };
 }
 
@@ -1513,9 +1547,12 @@ function dlPl(){
 // ══════════════════════════════════════════════════════════
 async function rN(){
   $('#main').innerHTML=ld();
-  const{data:obls}=await SB.from('obligaciones').select('*,cuotas(valor_pagado,estado)').eq('titular_id',U.id).eq('estado','activa');
-  const d=(obls||[]).map(o=>{const p=(o.cuotas||[]).filter(c=>c.estado==='pagado').reduce((s,c)=>s+(+c.valor_pagado),0);
-    const s=Math.max(+o.monto_total-p,0);return{...o,saldo:s,cm:+o.valor_cuota||Math.ceil(s/12)||1}
+  const uid=U.id;
+  const{data:obls}=await SB.from('obligaciones').select('*,cuotas(valor_pagado,estado)')
+    .or(`titular_id.eq.${uid},deudor_id.eq.${uid}`).eq('estado','activa');
+  // Solo deudas propias ("le debo"): lo que te deben no entra al plan de pago.
+  const d=(obls||[]).filter(o=>esLeDebo(o,uid)).map(o=>{
+    const s=saldoObl(o);return{...o,saldo:s,cm:+o.valor_cuota||Math.ceil(s/12)||1}
   }).filter(x=>x.saldo>0.01).sort((a,b)=>a.saldo-b.saldo);
   $('#main').innerHTML=`
   <div class="card" style="margin-bottom:18px">
@@ -1539,7 +1576,7 @@ async function rN(){
         <td id="nb${i}"><span class="badge bm">— calcula →</span></td></tr>`).join('')}
     </table></div>
     <div id="res-n" style="margin-top:14px"></div>
-  </div>`:'<div class="empty"><p>No tienes obligaciones activas. ¡Excelente posición! 🎉</p></div>'}`;
+  </div>`:'<div class="empty"><p>No tienes deudas propias activas. ¡Excelente posición! 🎉</p></div>'}`;
   window._dn=d;
 }
 function calcN(){
