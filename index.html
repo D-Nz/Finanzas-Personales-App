@@ -1530,7 +1530,7 @@ async function carHist(){
 }
 async function procExt(e){
   const file=e.target.files[0];if(!file)return;
-  extB=[];_lineasExt=[];toast('Procesando…',3000);
+  extB=[];_lineasExt=[];_ocr=false;_ocrImgs=new Map();_totalManual=null;_lineaTotal=null;toast('Procesando…',3000);
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf') await parsePDF(file);else await parseXLS(file);
   if(extB.length){
@@ -1561,7 +1561,15 @@ async function parsePDF(file){
         if(linea)allLines.push(linea);
       });
     }
-  }catch(e){console.error(e);toast('No se pudo leer el PDF. Usa el PDF digital que descargas del banco, no uno escaneado.',6000);return}
+    // PDF de imágenes (p. ej. PacifiCard): sin texto → se lee con OCR dentro del navegador
+    _ocr=allLines.join('').replace(/\s/g,'').length<40;
+    if(_ocr){
+      const ocr=await lineasConOCR(pdf);
+      if(!ocr)return;
+      _ocrImgs=new Map();
+      allLines=ocr.map(o=>{const n=normalizarOCR(o.t);if(o.img)_ocrImgs.set(n,o.img);return n});
+    }
+  }catch(e){console.error(e);toast('No se pudo leer el PDF. Usa el PDF que descargas del banco.',6000);return}
   _lineasExt=allLines;
   const texto=allLines.join('\n');
   const banco=detBanco(texto);
@@ -1569,6 +1577,68 @@ async function parsePDF(file){
   else if(banco==='Diners'||banco==='Discover') parsDC(allLines,banco);
   else if(banco==='Pichincha') parsPI(allLines);
   else{toast('Banco no reconocido. Usa la plantilla Excel.',4000);parsGen(allLines,banco)}
+}
+// ── OCR (Tesseract, dentro del navegador: la imagen no sale del equipo) ──
+let _ocr=false, _ocrImgs=new Map();
+function cargarScript(src){return new Promise((ok,mal)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=mal;document.head.appendChild(s)})}
+async function lineasConOCR(pdf){
+  try{if(typeof Tesseract==='undefined')await cargarScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js')}
+  catch(e){console.error(e);toast('No se pudo cargar el lector de imágenes (OCR). Revisa tu conexión e inténtalo de nuevo.',6000);return null}
+  const lineas=[];
+  try{
+    toast('El PDF es una imagen: leyendo el texto con OCR…',60000);
+    const worker=await Tesseract.createWorker('spa');
+    await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
+    for(let p=1;p<=pdf.numPages;p++){
+      toast(`Leyendo con OCR la página ${p} de ${pdf.numPages}…`,60000);
+      const page=await pdf.getPage(p);
+      const vp=page.getViewport({scale:3});
+      const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+      const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+      await page.render({canvasContext:ctx,viewport:vp}).promise;
+      // Escala de grises: en las pruebas dio mejores dígitos que binarizar
+      const img=ctx.getImageData(0,0,c.width,c.height),d=img.data;
+      for(let i=0;i<d.length;i+=4){const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];d[i]=d[i+1]=d[i+2]=g}
+      ctx.putImageData(img,0,0);
+      const{data}=await worker.recognize(c,{},{text:true,blocks:true});
+      const lin=data.lines||(data.blocks||[]).flatMap(b=>(b.paragraphs||[]).flatMap(p=>p.lines||[]));
+      if(lin.length){
+        lin.forEach(L=>{
+          const t=(L.text||'').trim();if(!t)return;
+          // Recorte de la línea (para comparar el monto leído con la imagen original)
+          let img=null;
+          try{const b=L.bbox,pad=6,w=b.x1-b.x0+2*pad,hh=b.y1-b.y0+2*pad;
+            const k=document.createElement('canvas');k.width=Math.round(w/2);k.height=Math.round(hh/2);
+            k.getContext('2d').drawImage(c,b.x0-pad,b.y0-pad,w,hh,0,0,k.width,k.height);img=k.toDataURL('image/jpeg',0.85)}catch(e){}
+          lineas.push({t,img});
+        });
+      }else data.text.split('\n').map(l=>l.trim()).filter(Boolean).forEach(t=>lineas.push({t,img:null}));
+    }
+    await worker.terminate();
+    toast('Texto leído. Revisa los montos antes de importar.',3000);
+  }catch(e){console.error(e);toast('No se pudo leer la imagen del PDF con OCR.',6000);return null}
+  return lineas;
+}
+// Corrige confusiones típicas del OCR para que los lectores de cada banco reconozcan las líneas.
+const MES3=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+function distancia(a,b){const m=[...Array(a.length+1)].map((_,i)=>[i]);for(let j=1;j<=b.length;j++)m[0][j]=j;
+  for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return m[a.length][b.length]}
+function mesOCR(t){const u=t.toUpperCase().replace(/0/g,'O').replace(/1/g,'I').replace(/5/g,'S');
+  let mejor=null,dm=9;MES3.forEach(m=>{const d=distancia(u,m);if(d<dm){dm=d;mejor=m}});return dm<=2?mejor:null}
+const digitoOCR=s=>s.replace(/[oOQD]/g,'0').replace(/[iIl|!]/g,'1').replace(/[zZ]/g,'2').replace(/[sS]/g,'5').replace(/B/g,'8').replace(/[gq]/g,'9');
+function normalizarOCR(l){
+  let t=l.replace(/€/g,'').replace(/\s{2,}/g,'  ');
+  // Fechas "04/N0V/2026", "19/10V/2026"
+  t=t.replace(/\b(\d{1,2})\/([A-Za-z0-9]{3})\/(\d{4})\b/g,(x,d,m,y)=>/[A-Za-z]/.test(m)&&mesOCR(m)?`${d}/${mesOCR(m)}/${y}`:x);
+  // Inicio de movimiento "ocT/1s 006510 …" → "OCT/15 006510 …"
+  const m=/^([A-Za-z]{3})\s?[\/;:,.]?\s?([A-Za-z0-9|]{1,2})\s+(\S+)\s+(.*)$/.exec(t);
+  // Solo es un movimiento si la referencia (3.ª palabra) es casi toda dígitos
+  if(m&&mesOCR(m[1])&&(digitoOCR(m[3]).match(/\d/g)||[]).length>=Math.max(3,m[3].length-2)){
+    let dia=digitoOCR(m[2]);if(!/^\d{1,2}$/.test(dia)||+dia<1||+dia>31)dia='01';
+    t=`${mesOCR(m[1])}/${dia.padStart(2,'0')} ${digitoOCR(m[3])} ${m[4]}`
+      .replace(/\b(c[o0]n[a-z0-9]?|[o0]na|c[o0]ns)\b/gi,'CONS').replace(/\b[PF]A[GS5]O\b/gi,'PAGO').replace(/\bD[I1l]F\b/g,'DIF');
+  }
+  return t;
 }
 function detBanco(t){
   if(t.includes('PACIFICARD')||t.includes('PacifiCard')||t.includes('intermatico'))return 'PacifiCard';
@@ -1580,11 +1650,11 @@ function detBanco(t){
 const MESES2={ENE:1,FEB:2,MAR:3,ABR:4,MAY:5,JUN:6,JUL:7,AGO:8,SEP:9,OCT:10,NOV:11,DIC:12};
 function parsPC(lineas){
   let sec=false;
-  const re=/^([A-Z]{3})\/(\d{1,2})\s+(\d+)\s+(.+?)\s+(?:(\d{1,2})\/(\d{1,2})\s+)?(CONS|DIF|PAGO|N\/D|AV)\s+([\d,\.]+)(?:\s*[+-]\s*(\d{1,3}(?:,\d{3})*\.\d{2}))?/;
+  const re=/^([A-Z]{3})\/(\d{1,2})\s+(\S+)\s+(.+?)\s+(?:(\d{1,2})\/(\d{1,2})\s+)?(CONS|DIF|PAGO|N\/D|AV)\s+([\d,\.]+)(?:\s*[+-]\s*(\d{1,3}(?:,\d{3})*\.\d{2}))?/;
   for(const l of lineas){
-    if(l.includes('DETALLE DE MOVIMIENTOS')){sec=true;continue}
+    if(l.includes('DETALLE DE MOVIMIENTOS')||/SALDO\s+ANTERIOR/.test(l)){sec=true;continue}
     if(!sec)continue;
-    if(l.includes('TOTAL PAGO DE CONTADO')||l.includes('CONCEPTOS BÁSICOS'))break;
+    if(/TOTAL\s+[PF]AGO\s+DE\s+CONTADO/.test(l)||l.includes('CONCEPTOS BÁSICOS'))break;
     const m=re.exec(l);
     if(m){
       const[,mes,dia,,desc,cn,ct,tipo,val,sdif]=m;
@@ -1592,7 +1662,7 @@ function parsPC(lineas){
       const v=parseFloat(val.replace(/,(?=\d{3})/g,'').replace(',','.'));
       const cuota=cn?` (${cn}/${ct})`:'';
       if(v>0)extB.push({banco:'PacifiCard',fecha_tx:`${ANIO}-${String(mn).padStart(2,'0')}-${String(dia).padStart(2,'0')}`,concepto:(desc.trim().replace(/\s+/g,' '))+cuota,tipo_op:tipo,valor:v,categoria:acat(desc),
-        _saldoDif:tipo==='DIF'&&sdif?parseFloat(sdif.replace(/,/g,'')):undefined});
+        _saldoDif:tipo==='DIF'&&sdif?parseFloat(sdif.replace(/,/g,'')):undefined,_linea:l});
     }
   }
 }
@@ -1615,7 +1685,7 @@ function parsDC(lineas,banco){
         if(dU.includes('PAGO')||dU.includes('MUCHAS GRACIAS'))tipo='PAGO';
         else if(dU.includes('IVA')||dU.includes('SOLCA'))tipo='ND';
         const cuota=c1?` (${c1}/${c2})`:'';
-        extB.push({banco,fecha_tx:`${ANIO}-${mm}-${dd}`,concepto:(desc.trim().replace(/\s+/g,' '))+cuota,tipo_op:tipo,valor:v,categoria:acat(desc)});
+        extB.push({banco,fecha_tx:`${ANIO}-${mm}-${dd}`,concepto:(desc.trim().replace(/\s+/g,' '))+cuota,tipo_op:tipo,valor:v,categoria:acat(desc),_linea:l});
       }
     }
   }
@@ -1639,7 +1709,7 @@ function parsPI(lineas){
         let tipo='CONS';if(op==='DIFERIDO')tipo='DIF';else if(op==='N/D')tipo='ND';else if(op==='PAGO')tipo='PAGO';
         const cuota=cn?` (${cn}/${ct})`:'';
         extB.push({banco:'Pichincha',fecha_tx:`${ANIO}-${mm}-${dd}`,concepto:(desc.trim().replace(/\s+/g,' ').replace(/\s+Q\s*$/,''))+cuota,tipo_op:tipo,valor:v,categoria:acat(desc),
-          _saldoDif:tipo==='DIF'&&sdif?parseFloat(sdif.replace(/\./g,'').replace(',','.')):undefined});
+          _saldoDif:tipo==='DIF'&&sdif?parseFloat(sdif.replace(/\./g,'').replace(',','.')):undefined,_linea:l});
       }
     }
   }
@@ -1821,11 +1891,54 @@ async function aplicarDiferido(d,accion){
   return 'actualizada';
 }
 function acat(d){const u=d.toUpperCase();for(const[k,v]of Object.entries(CM))if(u.includes(k))return v;return 'Sin categoría'}
+// Monto escrito por el banco: "957,92" / "1.008,45" (coma decimal) o "419.43" / "1,571.93" (punto decimal)
+function leerMonto(s){s=String(s).trim();if(/,\d{2}$/.test(s))return parseFloat(s.replace(/\./g,'').replace(',','.'));return parseFloat(s.replace(/,/g,''))}
+// Total que informa el banco, para comparar con la suma de los cargos leídos (sin pagos)
+let _totalManual=null,_lineaTotal=null;
+function totalBanco(){
+  if(_totalManual!=null)return _totalManual;
+  const et=[/TOTAL\s+[PF]AGO\s+DE\s+CONTADO/i,/TOTAL\s+A\s+PAGAR/i,/TOTAL\s+DE\s+CONSUMOS/i];
+  for(const re of et){
+    for(let i=0;i<_lineasExt.length;i++){
+      if(!re.test(_lineasExt[i]))continue;
+      for(const t of [_lineasExt[i].slice(_lineasExt[i].search(re)),_lineasExt[i+1]||'']){
+        const m=t.match(/\d{1,3}(?:[.,]\d{3})*[.,]\d{2}(?!\d)/);
+        if(m){_lineaTotal=_lineasExt[i];return leerMonto(m[0])}
+      }
+    }
+  }
+  return null;
+}
+function htmlCuadre(){
+  const tb=totalBanco();if(tb==null)return '';
+  const suma=r2(extB.filter((r,i)=>r.tipo_op!=='PAGO'&&document.getElementById('ck'+i)?.checked!==false).reduce((s,r)=>s+r.valor,0));
+  const dif=r2(suma-tb);
+  const editar=_ocr?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--text)">
+      <label for="tot-banco">Total del estado (corrígelo si el OCR lo leyó mal):</label>
+      <input id="tot-banco" value="${tb.toFixed(2)}" inputmode="decimal" onchange="corregirTotal(this.value)" style="width:100px;text-align:right;font:inherit;border:1px solid var(--amber);border-radius:6px;padding:3px 6px;background:var(--amber-bg)">
+      ${_ocrImgs.get(_lineaTotal)?`<img src="${_ocrImgs.get(_lineaTotal)}" alt="Línea del total en el PDF" style="max-width:100%;height:auto;border:1px solid var(--border);border-radius:4px">`:''}</div>`:'';
+  if(Math.abs(dif)<0.01)return `<div style="background:var(--green-bg);color:var(--green);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px"><b>Cuadra con el banco:</b> la suma de los cargos leídos es ${fmt(suma)}, igual al total del estado ✓${editar}</div>`;
+  return `<div style="background:var(--red-bg);color:var(--red);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px"><b>No cuadra con el banco:</b> los cargos leídos suman ${fmt(suma)} y el estado dice ${fmt(tb)} (diferencia ${fmt(dif)}).
+    ${_ocr?'Lo más probable es un monto mal leído: compáralos con el PDF y corrígelos aquí.':'Puede deberse a saldos anteriores, intereses o líneas que no se leyeron; revisa antes de importar.'}${editar}</div>`;
+}
+// Al corregir un monto: actualiza el movimiento, el cuadre y los diferidos sin perder lo marcado
+function corregirTotal(v){const n=leerMonto(v);if(!(n>0))return toast('Escribe un monto válido, por ejemplo 419.43');
+  _totalManual=r2(n);const c=document.getElementById('cuadre-ext');if(c)c.innerHTML=htmlCuadre()}
+function editarMonto(i,v){
+  const n=leerMonto(v);if(!(n>0))return toast('Escribe un monto válido, por ejemplo 46.33');
+  extB[i].valor=r2(n);
+  const c=document.getElementById('cuadre-ext');if(c)c.innerHTML=htmlCuadre();
+  const d=document.getElementById('dif-ext');if(d)d.innerHTML=htmlDiferidos();
+}
 function renderPrev(){
   const cats=['Sin categoría','Hogar','Alimentación','Transporte','Salud','Educación','Entretenimiento','Suscripciones','Vehículo','Deportes','Servicios','Pago','Otro'];
   const el=$('#prev-ext');el.style.display='block';
   el.innerHTML=`<div class="card">
     <div class="ctit">${extB.length} movimientos — <span class="badge bm">${[...new Set(extB.map(r=>r.banco))].join(', ')}</span></div>
+    ${_ocr?`<div style="background:var(--amber-bg);color:var(--amber);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+      <b>Este PDF es una imagen y se leyó con OCR.</b> El OCR puede confundir dígitos (por ejemplo 9 y 5, 3 y 9).
+      Compara cada monto con el PDF y corrígelo en su casilla antes de importar.</div>`:''}
+    <div id="cuadre-ext"></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--cream);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:13px">
       <span><b>Estado de cuenta de ${mesN(_corte.mes)} ${_corte.anio}</b>${_corte.dia?` · corte al ${_corte.dia}`:''}</span>
       <span style="color:var(--muted)">${_corte.origen==='pdf'?'Fecha leída del PDF.':_corte.origen==='manual'?'Mes elegido por ti.':'No encontré la fecha de corte; la estimé con el último movimiento. Cámbiala si no es correcta.'}</span>
@@ -1852,19 +1965,26 @@ function renderPrev(){
       <td style="font-size:12px">${r.fecha_tx?ff(r.fecha_tx):'—'}<div style="font-size:10px;color:var(--muted)">va a ${(m=>mesN(m.mes)+' '+m.anio)(mesDeFila(r))}</div></td>
       <td><div style="font-size:13px;font-weight:600">${r.concepto.slice(0,48)}</div><div style="font-size:10px;color:var(--muted)">${r.banco}</div></td>
       <td><span class="badge t-${(r.tipo_op||'OTRO').replace('/','')}">${r.tipo_op||'—'}</span></td>
-      <td class="num ${r.tipo_op==='PAGO'?'pos':'neg'}">${fmt(r.valor)}</td>
+      <td class="num ${r.tipo_op==='PAGO'?'pos':'neg'}">${_ocr
+        ?`<input id="val${i}" value="${r.valor.toFixed(2)}" inputmode="decimal" onchange="editarMonto(${i},this.value)" aria-label="Monto de ${r.concepto.replace(/"/g,'')}" style="width:90px;text-align:right;font:inherit;border:1px solid var(--amber);border-radius:6px;padding:3px 6px;background:var(--amber-bg)">`
+        :fmt(r.valor)}</td>
       <td><select id="cat${i}" style="font-size:12px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;background:var(--cream);width:125px">
         ${cats.map(c=>`<option ${c===r.categoria?'selected':''}>${c}</option>`).join('')}
       </select></td>
-    </tr>`).join('')}
+    </tr>${_ocr&&_ocrImgs.get(r._linea)?`<tr><td></td><td colspan="5" style="padding-top:0;border-top:none">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Así aparece en el PDF:</div>
+      <img src="${_ocrImgs.get(r._linea)}" alt="Línea original del estado de cuenta" style="display:block;max-width:100%;height:auto;border:1px solid var(--border);border-radius:4px"></td></tr>`:''}`).join('')}
     </table></div>
-    ${htmlDiferidos()}
-  </div>`}
+    <div id="dif-ext">${htmlDiferidos()}</div>
+  </div>`;
+  const c=document.getElementById('cuadre-ext');if(c)c.innerHTML=htmlCuadre();
+  extB.forEach((_,i)=>{const ck=document.getElementById('ck'+i);if(ck)ck.addEventListener('change',()=>{const c2=document.getElementById('cuadre-ext');if(c2)c2.innerHTML=htmlCuadre()})});
+}
 async function impExt(){
   const dest=document.querySelector('input[name=dest]:checked')?.value||'gastos';
   const uid=U.id;
   const sel=extB.map((r,i)=>{const ck=document.getElementById('ck'+i),cat=document.getElementById('cat'+i);if(!ck?.checked)return null;
-    const{_mm,_dd,_saldoDif,...base}=r;
+    const{_mm,_dd,_saldoDif,_linea,...base}=r;
     return{...base,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:_corte.mes,anio_periodo:_corte.anio}}).filter(Boolean);
   if(!sel.length&&!_difs.length)return toast('Marca al menos un movimiento para importar.');
   const btnImp=document.getElementById('btn-imp-ext');if(btnImp){btnImp.disabled=true;btnImp.textContent='Importando…'}
