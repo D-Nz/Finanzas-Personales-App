@@ -1472,7 +1472,7 @@ async function procExt(e){
   extB=[];toast('Procesando…',3000);
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf') await parsePDF(file);else await parseXLS(file);
-  if(extB.length) renderPrev();
+  if(extB.length){await cargarDeudasTarjeta();renderPrev();}
   else toast('No se encontraron movimientos en el archivo. Revisa que sea un estado de cuenta compatible o usa la plantilla Excel.',6000);
 }
 async function parsePDF(file){
@@ -1600,6 +1600,94 @@ async function parseXLS(file){
     if(desc&&val)extB.push({banco:'Excel',fecha_tx:null,concepto:String(desc).trim().slice(0,80),tipo_op:'CONS',valor:val,categoria:acat(String(desc))})}}
 }
 const CM={UBER:'Transporte',TAXI:'Transporte',EDS:'Transporte',GASOLINA:'Transporte',METROCAR:'Vehículo',TALLER:'Vehículo',NETFLIX:'Suscripciones',SPOTIFY:'Suscripciones',AMAZON:'Suscripciones',CRUNCHYROLL:'Suscripciones',YOUTUBE:'Suscripciones',DISNEY:'Suscripciones',MERCADO:'Alimentación',SUPERMAXI:'Alimentación',MCDONALDS:'Alimentación',KFC:'Alimentación',CLINICA:'Salud',FARMACIA:'Salud',HOSPITAL:'Salud',UDLA:'Educación',MUNICIPIO:'Servicios',INTERNET:'Servicios',TUENTI:'Servicios',SMARTFIT:'Deportes',PAGO:'Pago'};
+// ── Diferidos: compras a cuotas "(n/N)" del estado de cuenta → deudas con la tarjeta ──
+let _oblsLD=[], _difs=[];
+const TARJETA={Pichincha:'VISA BCO PICHINCHA',Diners:'DINERS CLUB',Discover:'DISCOVER',PacifiCard:'PACIFICARD'};
+const baseDif=c=>c.replace(/\s*\(\d+\/\d+\)\s*$/,'').trim();
+function cuotaDif(c){const m=/\((\d+)\/(\d+)\)\s*$/.exec(c||'');return m?{n:+m[1],N:+m[2]}:null}
+async function cargarDeudasTarjeta(){
+  const{data,error}=await SB.from('obligaciones')
+    .select('id,nombre,notas,num_cuotas,deudor_nombre,cuotas(id,numero,estado,valor_esperado,valor_pagado)')
+    .eq('titular_id',U.id).eq('es_deuda_propia',true).eq('estado','activa').order('nombre');
+  if(error)console.error(error);
+  _oblsLD=data||[];
+}
+// Agrupa las líneas iguales (mismo banco, concepto, cuota y valor): se cobran juntas cada mes.
+function agruparDiferidos(rows){
+  const g={};
+  rows.forEach(r=>{
+    if(r.tipo_op!=='DIF')return;
+    const q=cuotaDif(r.concepto);if(!q||q.N<2||q.n<1||q.n>q.N)return;
+    const base=baseDif(r.concepto);
+    const k=[r.banco,base.toUpperCase(),q.n,q.N,r.valor].join('|');
+    if(!g[k])g[k]={banco:r.banco,base,n:q.n,N:q.N,valor:0,veces:0};
+    g[k].valor=r2(g[k].valor+r.valor);g[k].veces++;
+  });
+  return Object.values(g).map(d=>({...d,pendiente:r2(d.valor*(d.N-d.n+1)),marca:`[dif:${d.banco}|${d.base.toUpperCase()}|${d.N}]`}));
+}
+// Fecha (1.º de mes) de la cuota k, sabiendo que la cuota n se cobra en el mes que se está importando.
+function fechaCuotaDif(d,k){const x=new Date(anioV,mesV-1+(k-d.n),1);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-01`}
+function accionDifPorDefecto(d){
+  const enlazada=_oblsLD.find(o=>(o.notas||'').includes(d.marca));
+  return enlazada?'act:'+enlazada.id:'nueva';
+}
+function opcionesDif(d){
+  const compat=_oblsLD.filter(o=>(o.notas||'').includes(d.marca)||(o.cuotas||[]).length===d.N);
+  const def=accionDifPorDefecto(d);
+  return `<option value="nueva" ${def==='nueva'?'selected':''}>Crear deuda nueva</option>`
+    +compat.map(o=>`<option value="act:${o.id}" ${def==='act:'+o.id?'selected':''}>Actualizar: ${o.nombre} (${(o.cuotas||[]).length} cuotas)</option>`).join('')
+    +`<option value="omitir">No registrar</option>`;
+}
+function htmlDiferidos(){
+  _difs=agruparDiferidos(extB);
+  if(!_difs.length)return '';
+  return `<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+    <div class="ctit" style="margin-bottom:6px">Diferidos: deudas pendientes con la tarjeta (${_difs.length})</div>
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Cada compra a cuotas se registra en <b>Deudas → Le debo</b> con sus cuotas.
+    La cuota de este estado de cuenta y las siguientes quedan pendientes; las anteriores se marcan como pagadas.
+    Solo puedes actualizar deudas que tengan el mismo número de cuotas.</p>
+    <div class="tw"><table><tr><th>Compra</th><th>Cuota</th><th class="num">Valor cuota</th><th class="num">Pendiente</th><th>Qué hacer</th></tr>
+    ${_difs.map((d,i)=>`<tr>
+      <td><div style="font-size:13px;font-weight:600">${d.base}${d.veces>1?` <span class="badge bm">×${d.veces}</span>`:''}</div><div style="font-size:10px;color:var(--muted)">${TARJETA[d.banco]||d.banco}</div></td>
+      <td style="font-size:12.5px;white-space:nowrap">${d.n} de ${d.N}</td>
+      <td class="num">${fmt(d.valor)}</td>
+      <td class="num neg"><b>${fmt(d.pendiente)}</b></td>
+      <td><select id="dif-acc-${i}" style="font-size:12px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;background:var(--cream);max-width:240px">${opcionesDif(d)}</select></td>
+    </tr>`).join('')}
+    </table></div></div>`;
+}
+async function aplicarDiferido(d,accion){
+  const uid=U.id;
+  if(accion==='omitir')return 'omitida';
+  if(accion==='nueva'){
+    const{data:obl,error}=await SB.from('obligaciones').insert({
+      titular_id:uid,deudor_id:uid,nombre:d.base,descripcion:'Avances / Tarjetas',segmento:'Avances / Tarjetas',
+      deudor_nombre:TARJETA[d.banco]||d.banco,monto_total:r2(d.valor*d.N),valor_cuota:d.valor,num_cuotas:d.N,
+      fecha_inicio:fechaCuotaDif(d,1),estado:'activa',es_deuda_propia:true,
+      notas:`Diferido importado del estado de cuenta (${d.banco}).\n${d.marca}`
+    }).select().single();
+    if(error){console.error(error);return 'error'}
+    const rows=[];
+    for(let k=1;k<=d.N;k++){
+      const pagada=k<d.n;
+      rows.push({obligacion_id:obl.id,numero:k,concepto:`Cuota ${k}`,fecha_prog:fechaCuotaDif(d,k),
+        valor_esperado:d.valor,valor_pagado:pagada?d.valor:0,estado:pagada?'pagado':'pendiente',fecha_pago:pagada?fechaCuotaDif(d,k):null});
+    }
+    const{error:e2}=await SB.from('cuotas').insert(rows);
+    if(e2){console.error(e2);await SB.from('obligaciones').delete().eq('id',obl.id);return 'error'}
+    return 'creada';
+  }
+  const o=_oblsLD.find(x=>'act:'+x.id===accion);
+  if(!o)return 'error';
+  for(const c of (o.cuotas||[]).filter(c=>c.numero<d.n&&c.estado!=='pagado')){
+    const{error}=await SB.from('cuotas').update({valor_pagado:c.valor_esperado,estado:'pagado',fecha_pago:fechaCuotaDif(d,c.numero)}).eq('id',c.id);
+    if(error){console.error(error);return 'error'}
+  }
+  if(!(o.notas||'').includes(d.marca)){
+    await SB.from('obligaciones').update({notas:((o.notas||'')+'\n'+d.marca).trim()}).eq('id',o.id);
+  }
+  return 'actualizada';
+}
 function acat(d){const u=d.toUpperCase();for(const[k,v]of Object.entries(CM))if(u.includes(k))return v;return 'Sin categoría'}
 function renderPrev(){
   const cats=['Sin categoría','Hogar','Alimentación','Transporte','Salud','Educación','Entretenimiento','Suscripciones','Vehículo','Deportes','Servicios','Pago','Otro'];
@@ -1617,7 +1705,7 @@ function renderPrev(){
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <button class="btn bgh sm" onclick="extB.forEach((_,i)=>{const c=document.getElementById('ck'+i);if(c)c.checked=true})">✓ Todos</button>
       <button class="btn bgh sm" onclick="extB.forEach((_,i)=>{const c=document.getElementById('ck'+i);if(c)c.checked=false})">✗ Ninguno</button>
-      <button class="btn bgo" style="margin-left:auto" onclick="impExt()">Importar →</button>
+      <button class="btn bgo" style="margin-left:auto" id="btn-imp-ext" onclick="impExt()">Importar →</button>
     </div>
     <div style="max-height:460px;overflow-y:auto">
     <table><tr><th style="width:32px"></th><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="num">Valor</th><th>Categoría</th></tr>
@@ -1632,17 +1720,31 @@ function renderPrev(){
       </select></td>
     </tr>`).join('')}
     </table></div>
+    ${htmlDiferidos()}
   </div>`}
 async function impExt(){
   const dest=document.querySelector('input[name=dest]:checked')?.value||'gastos';
   const uid=U.id;
   const sel=extB.map((r,i)=>{const ck=document.getElementById('ck'+i),cat=document.getElementById('cat'+i);if(!ck?.checked)return null;
     return{...r,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:mesV,anio_periodo:anioV}}).filter(Boolean);
-  if(!sel.length)return toast('Marca al menos un movimiento para importar.');
-  await SB.from('extractos').insert(sel);
+  if(!sel.length&&!_difs.length)return toast('Marca al menos un movimiento para importar.');
+  const btnImp=document.getElementById('btn-imp-ext');if(btnImp){btnImp.disabled=true;btnImp.textContent='Importando…'}
+  // Leer las acciones elegidas antes de tocar la base
+  const acciones=_difs.map((d,i)=>document.getElementById('dif-acc-'+i)?.value||'omitir');
+  if(sel.length){
+    const{error:eExt}=await SB.from('extractos').insert(sel);
+    if(eExt){if(btnImp){btnImp.disabled=false;btnImp.textContent='Importar →'}return toast(errTxt('importar los movimientos',eExt),5000)}
+  }
   if(dest==='gastos'){const g=sel.filter(r=>r.tipo_op!=='PAGO'&&r.tipo_op!=='ND').map(r=>({usuario_id:uid,anio:anioV,mes:mesV,fecha:r.fecha_tx,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:'Necesidades',tipo:'variable',fuente:'importado',banco_origen:r.banco}));if(g.length)await SB.from('gastos').insert(g)}
   else if(dest==='ingresos'){const g=sel.filter(r=>r.tipo_op==='PAGO').map(r=>({usuario_id:uid,anio:anioV,mes:mesV,concepto:r.concepto,valor:r.valor,fecha:r.fecha_tx}));if(g.length)await SB.from('ingresos').insert(g)}
-  toast(`${sel.length} movimientos importados en ${mesN(mesV)} ${anioV} ✓`,3500);$('#prev-ext').style.display='none';extB=[];$('#finp').value='';carHist();
+  const res={creada:0,actualizada:0,omitida:0,error:0};
+  for(let i=0;i<_difs.length;i++)res[await aplicarDiferido(_difs[i],acciones[i])]++;
+  let msg=`${sel.length} movimientos importados en ${mesN(mesV)} ${anioV}`;
+  if(res.creada)msg+=` · ${res.creada} deuda${res.creada>1?'s':''} creada${res.creada>1?'s':''}`;
+  if(res.actualizada)msg+=` · ${res.actualizada} actualizada${res.actualizada>1?'s':''}`;
+  if(res.error)msg+=` · ${res.error} diferido${res.error>1?'s':''} no se pudo registrar`;
+  toast(msg+(res.error?'':' ✓'),res.error?7000:5000);
+  $('#prev-ext').style.display='none';extB=[];_difs=[];$('#finp').value='';carHist();
 }
 function dlPl(){
   if(typeof XLSX==='undefined')return;
