@@ -25,10 +25,10 @@ body{font-family:\'Inter\',system-ui,sans-serif;background:var(--cream);color:va
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .spin{width:32px;height:32px;border:3px solid var(--forest3);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:60px auto}
-#auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,var(--forest) 0%,var(--forest2) 50%,var(--forest3) 100%);padding:20px}
+#auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--forest);padding:20px}
 .auth-card{background:var(--card);border-radius:22px;padding:44px 40px;width:100%;max-width:420px;box-shadow:var(--shl)}
 .brand-mark{display:flex;align-items:center;gap:12px;margin-bottom:32px}
-.brand-icon{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--forest),var(--forest3));display:flex;align-items:center;justify-content:center}
+.brand-icon{width:48px;height:48px;border-radius:12px;background:var(--forest);display:flex;align-items:center;justify-content:center}
 .brand-icon svg{width:26px;height:26px;fill:none;stroke:var(--mint);stroke-width:1.8}
 .brand-name{font-size:19px;font-weight:700;color:var(--forest);letter-spacing:-.3px}
 .brand-name em{font-style:normal;color:var(--gold)}.brand-sub{font-size:12px;color:var(--muted);margin-top:2px}
@@ -39,7 +39,7 @@ body{font-family:\'Inter\',system-ui,sans-serif;background:var(--cream);color:va
 .fld input{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;font-size:14.5px;font-family:inherit;background:var(--cream);color:var(--text)}
 .fld input:focus{outline:none;border-color:var(--forest3);background:#fff}
 .fld2g{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.btnp{width:100%;background:linear-gradient(135deg,var(--forest),var(--forest3));color:#fff;border:none;border-radius:10px;padding:13px;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit}
+.btnp{width:100%;background:var(--forest);color:#fff;border:none;border-radius:10px;padding:13px;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit}
 .btnp:hover{filter:brightness(1.08)}.btnp:disabled{opacity:.6;cursor:not-allowed}
 .amsg{padding:10px 13px;border-radius:8px;font-size:13.5px;margin-bottom:14px;display:none}
 .amsg.err{background:var(--red-bg);color:var(--red);border:1px solid #f5c6c6;display:block}
@@ -47,7 +47,7 @@ body{font-family:\'Inter\',system-ui,sans-serif;background:var(--cream);color:va
 .afoot{font-size:12px;color:var(--muted);text-align:center;margin-top:16px}
 .danc{font-size:11px;color:var(--warm);text-align:center;margin-top:24px;letter-spacing:2px;font-weight:500}
 #app-screen{display:none;min-height:100vh}
-header{background:linear-gradient(135deg,var(--forest),var(--forest2));padding:0 24px;height:62px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(26,58,42,.2)}
+header{background:var(--forest);padding:0 24px;height:62px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(26,58,42,.2)}
 .hbrand{display:flex;align-items:center;gap:10px;color:#fff}
 .hico{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center}
 .hico svg{width:18px;height:18px;fill:none;stroke:var(--mint);stroke-width:1.8}
@@ -86,7 +86,7 @@ tr.hv:hover{background:var(--cream)}
 .t-PAGO{background:#fff3e0;color:#e65100}.t-ND{background:var(--cream2);color:var(--muted)}
 .btn{border:none;border-radius:9px;padding:8px 15px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:.12s}
 .bfo{background:var(--forest);color:#fff}.bfo:hover{background:var(--forest2)}
-.bgo{background:linear-gradient(135deg,var(--gold),var(--gold2));color:var(--forest)}
+.bgo{background:var(--gold);color:var(--forest)}.bgo:hover{background:var(--gold2)}
 .bgh{background:var(--cream);color:var(--muted);border:1.5px solid var(--border)}.bgh:hover{color:var(--forest);border-color:var(--sage)}
 .bda{background:var(--red-bg);color:var(--red)}
 .sm{padding:5px 11px;font-size:12px;border-radius:7px}.xs{padding:3px 8px;font-size:11px;border-radius:6px}
@@ -109,13 +109,17 @@ tr.hv:hover{background:var(--cream)}
 @media(min-width:900px){.mbox{max-width:860px}}
 @media(max-width:640px){.mbox{border-radius:14px;max-height:calc(100vh - 16px)}}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--forest);color:#fff;padding:11px 22px;border-radius:30px;font-size:14px;font-weight:600;opacity:0;transition:.3s;z-index:300;pointer-events:none;white-space:nowrap}
-.toast.on{opacity:1}
+.toast.on{opacity:1;pointer-events:auto}
+.toast{display:flex;align-items:center;gap:14px}
+.toast-btn{background:none;border:none;color:var(--gold);font:inherit;font-weight:700;cursor:pointer;padding:2px 4px}
+.toast-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:4px}
+.mesbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.mesbar h2{font-size:16px;font-weight:700;min-width:96px;text-align:center}
 .empty{text-align:center;padding:40px 20px;color:var(--muted)}
 .obl-card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);padding:18px;margin-bottom:10px;cursor:pointer;animation:fadein .3s ease;border-left:4px solid var(--sage);transition:.15s}
 .obl-card:hover{box-shadow:var(--shl);transform:translateY(-1px)}
 .obl-card.md{border-left-color:var(--green)}.obl-card.ld{border-left-color:var(--red)}
 .chart-card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);padding:22px;position:relative;overflow:hidden}
-.chart-card::before{content:\'\';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--forest),var(--gold))}
 .chart-card-title{font-size:14px;font-weight:700;color:var(--forest);margin-bottom:4px}
 .chart-card-sub{font-size:11.5px;color:var(--muted);margin-bottom:16px}
 .chart-wrap{position:relative;height:200px}
@@ -173,14 +177,14 @@ tr.hv:hover{background:var(--cream)}
     </div>
   </header>
   <nav>
-    <button class="nb on" data-v="resumen" onclick="goNav(this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Resumen</button>
-    <button class="nb" data-v="presupuesto" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke-linecap="round"/></svg>Presupuesto</button>
-    <button class="nb" data-v="obligaciones" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round"/></svg>Obligaciones</button>
-    <button class="nb" data-v="ahorros" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 00-1-1H5a2 2 0 000 4h15a1 1 0 011 1v4h-3a2 2 0 000 4h3a1 1 0 001-1v-2a1 1 0 00-1-1" stroke-linecap="round"/><path d="M3 5v14a2 2 0 002 2h15a1 1 0 001-1v-4" stroke-linecap="round"/></svg>Ahorros</button>
-    <button class="nb" data-v="extractos" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15" stroke-linecap="round"/></svg>Extractos</button>
-    <button class="nb" data-v="nieve" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2l-4 4m4-4l4 4M12 22l-4-4m4 4l4-4" stroke-linecap="round"/></svg>Nieve</button>
-    <button class="nb" data-v="libros" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-linecap="round"/></svg>Libros</button>
-    <button class="nb" data-v="qs" onclick="goNav(this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>Crédito QS</button>
+    <button class="nb on" data-v="resumen" onclick="goNav(this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Inicio</button>
+    <button class="nb" data-v="presupuesto" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke-linecap="round"/></svg>Mi mes</button>
+    <button class="nb" data-v="obligaciones" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round"/></svg>Deudas</button>
+    <button class="nb" data-v="ahorros" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 00-1-1H5a2 2 0 000 4h15a1 1 0 011 1v4h-3a2 2 0 000 4h3a1 1 0 001-1v-2a1 1 0 00-1-1" stroke-linecap="round"/><path d="M3 5v14a2 2 0 002 2h15a1 1 0 001-1v-4" stroke-linecap="round"/></svg>Metas</button>
+    <button class="nb" data-v="extractos" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15" stroke-linecap="round"/></svg>Importar</button>
+    <button class="nb" data-v="nieve" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2l-4 4m4-4l4 4M12 22l-4-4m4 4l4-4" stroke-linecap="round"/></svg>Plan de pago</button>
+    <button class="nb" data-v="libros" onclick="goNav(this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-linecap="round"/></svg>Fondos</button>
+    <button class="nb" data-v="qs" onclick="goNav(this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>Crédito casa</button>
   </nav>
   <main id="main"></main>
 </div>
@@ -199,7 +203,19 @@ const SB = supabase.createClient(
 
 let U=null, P=null, V='resumen';
 let mesV=new Date().getMonth()+1, anioV=new Date().getFullYear();
-const MES=mesV, ANIO=anioV;
+const MES=mesV, ANIO=anioV;   // mes de hoy (fijo). El mes que se está viendo es mesV/anioV.
+// Selector de mes compartido por Inicio, Mi mes e Importar.
+function cambiarMes(d){const x=new Date(anioV,mesV-1+d,1);mesV=x.getMonth()+1;anioV=x.getFullYear();rv()}
+function irMesActual(){mesV=MES;anioV=ANIO;rv()}
+function barraMes(extra=''){
+  return `<div class="mesbar">
+    <button class="btn bgh sm" onclick="cambiarMes(-1)" aria-label="Mes anterior">‹</button>
+    <h2>${mesN(mesV)} ${anioV}</h2>
+    <button class="btn bgh sm" onclick="cambiarMes(1)" aria-label="Mes siguiente">›</button>
+    ${mesV!==MES||anioV!==ANIO?'<button class="btn bgh sm" onclick="irMesActual()">Ir al mes actual</button>':''}
+    ${extra}
+  </div>`;
+}
 let segV='Todos', vistaObl='lista', oblDir='me_deben', partsG=[];
 let qsMesSel=null, qsFiltro=null;
 
@@ -224,7 +240,56 @@ const esLeDebo=(o,uid)=>(o.titular_id===uid&&o.es_deuda_propia===true)||(o.deudo
 const SEGS=['Todos','Créditos Bancarios','Avances / Tarjetas','Préstamos Personales','Gastos Compartidos'];
 const SEGCOL={'Créditos Bancarios':'#2563eb','Avances / Tarjetas':'#b87c1a','Préstamos Personales':'#2e7d52','Gastos Compartidos':'#5a8a6f'};
 
-function toast(m,d=2400){const t=$('#toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),d)}
+let _toastTmr=null;
+function toast(m,d=2400){const t=$('#toast');clearTimeout(_toastTmr);t.textContent=m;t.classList.add('on');_toastTmr=setTimeout(()=>t.classList.remove('on'),d)}
+// Aviso con botón "Deshacer" (8 s). fn debe devolver true si pudo restaurar.
+function toastDeshacer(m,fn){
+  const t=$('#toast');clearTimeout(_toastTmr);t.innerHTML='';
+  const s=document.createElement('span');s.textContent=m;
+  const b=document.createElement('button');b.type='button';b.className='toast-btn';b.textContent='Deshacer';
+  let usado=false;
+  b.onclick=async()=>{if(usado)return;usado=true;t.classList.remove('on');
+    const ok=await fn();toast(ok?'Restaurado ✓':'No se pudo restaurar. Inténtalo de nuevo.',3500)};
+  t.append(s,b);t.classList.add('on');_toastTmr=setTimeout(()=>t.classList.remove('on'),8000);
+}
+// Mensaje de error para el usuario; el detalle técnico va a la consola.
+function errTxt(accion,e){if(e)console.error(e);return `No se pudo ${accion}. Inténtalo de nuevo; si sigue fallando, recarga la página.`}
+function errAuth(e){
+  const m=(e?.message||'').toLowerCase();
+  if(m.includes('invalid login'))return 'Correo o contraseña incorrectos.';
+  if(m.includes('not confirmed'))return 'Tu correo aún no está confirmado. Revisa tu bandeja de entrada.';
+  if(m.includes('already'))return 'Ya existe una cuenta con ese correo. Ingresa o recupera tu contraseña.';
+  if(m.includes('rate limit')||m.includes('too many'))return 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.';
+  if(m.includes('password'))return 'La contraseña no cumple los requisitos: mínimo 8 caracteres.';
+  if(m.includes('fetch')||m.includes('network'))return 'No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.';
+  console.error(e);return 'No se pudo completar la operación. Inténtalo de nuevo.';
+}
+// Borra un registro guardando una copia (con sus filas hijas) para poder deshacer.
+// hijos: [{tabla, fk}] — filas que la base borra en cascada junto con el registro.
+async function borrarConDeshacer({tabla,id,hijos=[],msg,despues}){
+  const{data:fila,error:e1}=await SB.from(tabla).select('*').eq('id',id).single();
+  if(e1||!fila)return toast(errTxt('eliminar el registro',e1),5000);
+  const copias=[];
+  for(const hj of hijos){
+    const{data,error}=await SB.from(hj.tabla).select('*').eq(hj.fk,id);
+    if(error)return toast(errTxt('eliminar el registro',error),5000);
+    copias.push({tabla:hj.tabla,filas:data||[]});
+  }
+  const{error}=await SB.from(tabla).delete().eq('id',id);
+  if(error)return toast(errTxt('eliminar el registro',error),5000);
+  if(despues)await despues();
+  toastDeshacer(msg,async()=>{
+    const{error:r1}=await SB.from(tabla).insert(fila);
+    if(r1){console.error(r1);return false}
+    for(const c of copias){
+      if(!c.filas.length)continue;
+      const{error:r2}=await SB.from(c.tabla).insert(c.filas);
+      if(r2){console.error(r2);return false}
+    }
+    if(despues)await despues();
+    return true;
+  });
+}
 function openM(h){$('#mbox').innerHTML=h;$('#mbg').classList.add('on')}
 function closeM(){$('#mbg').classList.remove('on')}
 $('#mbg').addEventListener('click',e=>{if(e.target.id==='mbg')closeM()});
@@ -242,7 +307,7 @@ async function doLogin(){
   if(!em||!pw)return amsg('Ingresa correo y contraseña.');
   const btn=$('#blg');btn.disabled=true;btn.textContent='Verificando...';
   const{error}=await SB.auth.signInWithPassword({email:em,password:pw});
-  if(error){amsg(error.message);btn.disabled=false;btn.textContent='Ingresar a mi cuenta'}
+  if(error){amsg(errAuth(error));btn.disabled=false;btn.textContent='Ingresar a mi cuenta'}
 }
 async function doRegister(){
   const n=$('#rn').value.trim(),a=$('#ra').value.trim(),e=$('#re').value.trim(),p=$('#rp').value;
@@ -250,10 +315,16 @@ async function doRegister(){
   if(p.length<8)return amsg('Contraseña: mínimo 8 caracteres.');
   const btn=$('#brg');btn.disabled=true;btn.textContent='Creando cuenta...';
   const{error}=await SB.auth.signUp({email:e,password:p,options:{data:{nombre:n,apellido:a}}});
-  if(error){amsg(error.message);btn.disabled=false;btn.textContent='Crear mi cuenta gratuita'}
+  if(error){amsg(errAuth(error));btn.disabled=false;btn.textContent='Crear mi cuenta gratuita'}
   else amsg('¡Cuenta creada! Revisa tu correo.','ok');
 }
-async function doReset(){const e=prompt('Ingresa tu correo:');if(e){await SB.auth.resetPasswordForEmail(e);amsg('Revisa tu correo.','ok')}}
+async function doReset(){
+  const e=$('#le').value.trim();
+  if(!e)return amsg('Escribe tu correo en el campo "Correo" y vuelve a pulsar "¿Olvidaste tu contraseña?".');
+  const{error}=await SB.auth.resetPasswordForEmail(e);
+  if(error)return amsg(errAuth(error));
+  amsg('Te enviamos un correo a '+e+' con un enlace para crear una nueva contraseña.','ok');
+}
 async function doLogout(){await SB.auth.signOut()}
 
 SB.auth.onAuthStateChange(async(ev,sess)=>{
@@ -303,7 +374,7 @@ function mPerfil(){
 }
 async function savPerfil(){
   const n=$('#pn').value.trim(),a=$('#pa').value.trim();
-  if(!n)return toast('⚠ Ingresa tu nombre');
+  if(!n)return toast('Escribe tu nombre.');
   await SB.from('perfiles').upsert({id:U.id,nombre:n,apellido:a},{onConflict:'id'});
   P={...P,nombre:n,apellido:a};
   $('#hun').textContent=(n+' '+a).trim();
@@ -312,10 +383,10 @@ async function savPerfil(){
 }
 async function savPass(){
   const np=$('#np').value, np2=$('#np2').value;
-  if(np.length<8)return toast('⚠ Mínimo 8 caracteres');
-  if(np!==np2)return toast('⚠ Las contraseñas no coinciden');
+  if(np.length<8)return toast('La contraseña debe tener al menos 8 caracteres.',3500);
+  if(np!==np2)return toast('Las dos contraseñas no coinciden.',3500);
   const{error}=await SB.auth.updateUser({password:np});
-  if(error)return toast('Error: '+error.message);
+  if(error)return toast(errAuth(error),5000);
   toast('Contraseña actualizada ✓');closeM();
 }
 
@@ -328,8 +399,8 @@ async function rR(){
   $('#main').innerHTML=ld();
   const uid=U.id;
   const[{data:ing},{data:gas},{data:obls}]=await Promise.all([
-    SB.from('ingresos').select('valor').eq('usuario_id',uid).eq('anio',ANIO).eq('mes',MES),
-    SB.from('gastos').select('valor,naturaleza,categoria').eq('usuario_id',uid).eq('anio',ANIO).eq('mes',MES),
+    SB.from('ingresos').select('valor').eq('usuario_id',uid).eq('anio',anioV).eq('mes',mesV),
+    SB.from('gastos').select('valor,naturaleza,categoria').eq('usuario_id',uid).eq('anio',anioV).eq('mes',mesV),
     SB.from('obligaciones').select('*,cuotas(valor_pagado,estado)').or(`titular_id.eq.${uid},deudor_id.eq.${uid}`).eq('estado','activa')
   ]);
   const tI=(ing||[]).reduce((a,r)=>a+(+r.valor),0);
@@ -344,7 +415,7 @@ async function rR(){
 
   const meses6=[],ingMes=[],gasMes=[];
   for(let i=5;i>=0;i--){
-    const d=new Date(ANIO,MES-1-i,1);
+    const d=new Date(anioV,mesV-1-i,1);
     const m=d.getMonth()+1,y=d.getFullYear();
     meses6.push(mesN(m));
     const[{data:ii},{data:gg}]=await Promise.all([
@@ -356,7 +427,7 @@ async function rR(){
   }
 
   $('#main').innerHTML=`
-  <div style="font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px">${mesN(MES)} ${ANIO}</div>
+  ${barraMes()}
   <div class="g3">
     <div class="sc"><div class="sl">Ingresos</div><div class="sv pos">${fmt(tI)}</div></div>
     <div class="sc"><div class="sl">Gastos</div><div class="sv ${tG>tI?'neg':'warn'}">${fmt(tG)}</div></div>
@@ -366,7 +437,7 @@ async function rR(){
   <div class="g2" style="margin-bottom:20px">
     <div class="chart-card">
       <div class="chart-card-title">Distribución de gastos</div>
-      <div class="chart-card-sub">Por categoría · ${mesN(MES)} ${ANIO}</div>
+      <div class="chart-card-sub">Por categoría · ${mesN(mesV)} ${anioV}</div>
       ${catLabels.length
         ?`<div class="chart-wrap"><canvas id="cPie"></canvas></div><div id="pie-legend" class="chart-legend"></div>`
         :'<div class="empty"><p>Sin gastos registrados este mes.</p></div>'}
@@ -435,8 +506,8 @@ document.addEventListener('click', e=>{
   else if(action==='edit-obl') mEditObl(CURRENT_OBL?.id,CURRENT_OBL?.deudor_nombre||'',CURRENT_OBL?.segmento||'',CURRENT_OBL?.notas||'');
   else if(action==='toggle-obl') togObl(CURRENT_OBL?.id,CURRENT_OBL?.estado);
   else if(action==='delete-obl'){
-    if(confirm('¿Eliminar esta obligación y todo su historial?'))
-      SB.from('obligaciones').delete().eq('id',CURRENT_OBL.id).then(()=>{closeM();rO()});
+    borrarConDeshacer({tabla:'obligaciones',id:CURRENT_OBL.id,hijos:[{tabla:'cuotas',fk:'obligacion_id'}],
+      msg:'Obligación eliminada',despues:async()=>{closeM();await rO()}});
   }
   else if(action==='reopen-obl') togObl(btn.dataset.id,'cerrada');
 });
@@ -510,8 +581,8 @@ async function rO(){
     <button class="btn bgo sm" onclick="mNuevaObl()">＋ Nueva</button>
   </div>
   <div style="display:flex;gap:6px;margin-bottom:16px">
-    <button class="btn ${vistaObl==='lista'?'bfo':'bgh'} sm" onclick="vistaObl='lista';rO()">📋 Lista</button>
-    <button class="btn ${vistaObl==='persona'?'bfo':'bgh'} sm" onclick="vistaObl='persona';rO()">👥 Por persona</button>
+    <button class="btn ${vistaObl==='lista'?'bfo':'bgh'} sm" onclick="vistaObl='lista';rO()">Lista</button>
+    <button class="btn ${vistaObl==='persona'?'bfo':'bgh'} sm" onclick="vistaObl='persona';rO()">Por persona</button>
   </div>
   ${vistaObl==='persona'?`
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:20px">
@@ -521,7 +592,7 @@ async function rO(){
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
           <div style="width:36px;height:36px;border-radius:50%;background:var(--forest);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0">${nom.charAt(0).toUpperCase()}</div>
           <div style="flex:1"><div style="font-weight:700;font-size:14.5px">${nom}</div><div style="font-size:11px;color:var(--muted)">${grp.obls.length} obligación(es)</div></div>
-          <div style="font-size:17px;font-weight:800;color:var(--green)">${fmt(grp.saldo)}</div>
+          <div style="text-align:right"><div style="font-size:17px;font-weight:800;color:var(--green)">${fmt(grp.saldo)}</div><div style="font-size:10px;color:var(--muted)">te debe</div></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px">
           ${grp.obls.map(o=>`<div data-oblid="${o.id}" data-esmio="true" style="display:flex;justify-content:space-between;padding:7px 10px;background:var(--cream);border-radius:8px;cursor:pointer;font-size:13px" class="hv">
@@ -572,7 +643,7 @@ async function vObl(id){
   h+=`<span class="badge bm" style="border-left:3px solid ${segCol}">${o.segmento||'—'}</span>`;
   h+=`<span class="badge bm">${o.estado}</span>`;
   h+=`</div>`;
-  if(o.deudor_nombre) h+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">👤 <b>${o.deudor_nombre}</b></div>`;
+  if(o.deudor_nombre) h+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">${cobro?'Te debe':'Le debes a'}: <b>${o.deudor_nombre}</b></div>`;
   h+=`<div class="g3" style="margin-bottom:12px">`;
   h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">TOTAL</div><div style="font-weight:800;font-size:16px">${fmt(+o.monto_total)}</div></div>`;
   h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">PAGADO</div><div style="font-weight:800;font-size:16px;color:var(--green)">${fmt(pagTot)}</div></div>`;
@@ -615,7 +686,7 @@ async function vObl(id){
   if(puedeEditar){
     h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
     h+=`<button class="btn bfo sm" data-action="add-cuota">＋ Concepto</button>`;
-    h+=`<button class="btn bgh sm" data-action="edit-obl">✏ Editar</button>`;
+    h+=`<button class="btn bgh sm" data-action="edit-obl">Editar</button>`;
     h+=`<button class="btn bgh sm" data-action="toggle-obl">${o.estado==='activa'?'Cerrar':'Reabrir'}</button>`;
     h+=`<button class="btn bda sm" style="margin-left:auto" data-action="delete-obl">Eliminar</button>`;
     h+=`</div>`;
@@ -648,7 +719,7 @@ async function mPagCuota(cid,sug,oblId){
   pv.oninput=aviso; aviso();
   document.getElementById('btn-sav-pag').onclick=async()=>{
     const v=r2(+pv.value);
-    if(!(v>0))return toast('⚠ Ingresa un valor mayor a cero');
+    if(!(v>0))return toast('Escribe un valor mayor a cero.');
     const nuevo=r2(yaPagado+v);
     // El estado se deduce del total abonado: completo = pagado; parcial = sigue pendiente
     // (una cuota marcada "revisar" conserva esa marca hasta completarse).
@@ -659,7 +730,7 @@ async function mPagCuota(cid,sug,oblId){
     const{error}=await SB.from('cuotas').update({
       valor_pagado:nuevo,fecha_pago:document.getElementById('pf').value,nota,estado
     }).eq('id',cid);
-    if(error){btn.disabled=false;btn.textContent='Confirmar pago';return toast('No se pudo guardar el pago: '+error.message,5000)}
+    if(error){btn.disabled=false;btn.textContent='Confirmar pago';return toast(errTxt('guardar el pago',error),5000)}
     toast(estado==='pagado'?'Pago registrado ✓':'Abono registrado ✓');
     if(oblId){await vObl(oblId)}else closeM();
     rO();
@@ -681,10 +752,10 @@ function mAddCuota(oid){
   <button class="btn bfo" style="width:100%" id="btn-sav-item">Agregar</button>`);
   document.getElementById('btn-sav-item').onclick=async()=>{
     const c=document.getElementById('ac').value.trim(),v=+document.getElementById('av').value;
-    if(!c||!v)return toast('⚠ Completa concepto y valor');
+    if(!c||!v)return toast('Completa el concepto y el valor.');
     const{data:last}=await SB.from('cuotas').select('numero').eq('obligacion_id',oid).order('numero',{ascending:false}).limit(1).maybeSingle();
     const{error}=await SB.from('cuotas').insert({obligacion_id:oid,numero:(last?.numero||0)+1,concepto:c,valor_esperado:v,fecha_prog:document.getElementById('af').value||null,nota:document.getElementById('an').value||null,estado:'pendiente'});
-    if(error)return toast('No se pudo agregar el concepto: '+error.message,5000);
+    if(error)return toast(errTxt('agregar el concepto',error),5000);
     if(document.getElementById('ast').checked){
       const{data:ob}=await SB.from('obligaciones').select('monto_total').eq('id',oid).single();
       if(ob) await SB.from('obligaciones').update({monto_total:r2(+ob.monto_total+v)}).eq('id',oid);
@@ -767,7 +838,7 @@ async function savNuevaObl(){
   const email=document.getElementById('oe').value.trim().toLowerCase();
   const f=document.getElementById('ofi').value;
   const notas=document.getElementById('ono').value||'';
-  if(!nom||!m)return toast('⚠ Nombre y monto requeridos');
+  if(!nom||!m)return toast('Completa el nombre y el monto.');
   const uid=U.id;
   const esDeuPropia=oblDir==='le_debo';
   const{data:obl,error}=await SB.from('obligaciones').insert({
@@ -786,7 +857,7 @@ async function savNuevaObl(){
     estado:'activa',
     es_deuda_propia:esDeuPropia
   }).select().single();
-  if(error)return toast('Error: '+error.message);
+  if(error)return toast(errTxt('crear la obligación',error),5000);
   const nc=+document.getElementById('oq').value;
   if(nc>0){
     const vc=+document.getElementById('ovc').value||m/nc;
@@ -818,7 +889,10 @@ async function rQS(){
     .eq('usuario_id',uid).eq('activo',true).order('responsable');
 
   if(!creditos?.length){
-    $('#main').innerHTML='<div class="empty"><p>No hay créditos QS configurados.</p></div>';
+    $('#main').innerHTML=`<div class="empty">
+      <p style="font-weight:700;color:var(--text);margin-bottom:6px">Aún no tienes un crédito de la casa</p>
+      <p style="margin-bottom:16px">Regístralo con su capital, la cuota mensual y quiénes la pagan. Después marcas cada mes quién pagó.</p>
+      <button class="btn bfo" onclick="mNuevoQS()">＋ Registrar crédito</button></div>`;
     return;
   }
 
@@ -845,7 +919,9 @@ async function rQS(){
   h+=`<div class="sc"><div class="sl">Saldo pendiente</div><div class="sv warn">${fmt(granSaldo)}</div></div>`;
   h+=`</div>`;
 
-  h+=`<div style="font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px">Haz clic en cada crédito para ver el detalle de pagos</div>`;
+  h+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    <div style="font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase">Haz clic en cada crédito para ver el detalle de pagos</div>
+    <button class="btn bgo sm" onclick="mNuevoQS()">＋ Nuevo crédito</button></div>`;
 
   h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">`;
   resumen.forEach(c=>{
@@ -879,6 +955,38 @@ async function rQS(){
   window._qsPagos=pagos||[];
 }
 
+function mNuevoQS(){
+  openM(`<h3>Nuevo crédito de la casa <span class="mx" onclick="closeM()">×</span></h3>
+  <div class="ff"><label>Responsable del crédito</label><input id="qn-resp" placeholder="Ej: Ampary, Patricia…"></div>
+  <div class="f2">
+    <div class="ff"><label>Capital total ($)</label><input id="qn-cap" type="number" step="0.01"></div>
+    <div class="ff"><label>Cuota mensual ($)</label><input id="qn-cuota" type="number" step="0.01"></div>
+  </div>
+  <div class="ff"><label>Primer mes de pago</label><input id="qn-ini" type="month" value="${ANIO}-${String(MES).padStart(2,'0')}"></div>
+  <div class="ff"><label>Quiénes pagan la cuota</label><input id="qn-pag" placeholder="Ej: Kathy, Cris">
+    <div style="font-size:12px;color:var(--muted);margin-top:5px">Separa los nombres con comas. La cuota sugerida se reparte entre ellos.</div></div>
+  <button class="btn bfo" style="width:100%" id="btn-sav-qs">Registrar crédito</button>`);
+  document.getElementById('btn-sav-qs').onclick=async function(){
+    const resp=document.getElementById('qn-resp').value.trim();
+    const cap=r2(+document.getElementById('qn-cap').value), cuota=r2(+document.getElementById('qn-cuota').value);
+    const ini=document.getElementById('qn-ini').value;
+    const pags=document.getElementById('qn-pag').value.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!resp||!(cap>0)||!(cuota>0)||!ini||!pags.length)
+      return toast('Completa el responsable, el capital, la cuota, el primer mes y al menos un pagador.',4500);
+    this.disabled=true;this.textContent='Guardando…';
+    const{data:cred,error}=await SB.from('qs_creditos').insert({usuario_id:U.id,responsable:resp,capital_total:cap,
+      cuota_nominal:cuota,fecha_inicio:ini+'-01',activo:true}).select().single();
+    if(error){this.disabled=false;this.textContent='Registrar crédito';return toast(errTxt('registrar el crédito',error),5000)}
+    const{error:e2}=await SB.from('qs_pagadores').insert(pags.map(nombre=>({qs_credito_id:cred.id,nombre})));
+    if(e2){
+      // Sin pagadores el crédito no sirve: se deshace para no dejarlo a medias.
+      await SB.from('qs_creditos').delete().eq('id',cred.id);
+      this.disabled=false;this.textContent='Registrar crédito';
+      return toast(errTxt('registrar los pagadores',e2),5000);
+    }
+    toast('Crédito registrado ✓');closeM();rQS();
+  };
+}
 async function vQSCredito(creditoId){
   const credito=window._qsCreditos?.find(c=>c.id===creditoId);
   if(!credito)return;
@@ -955,7 +1063,7 @@ async function vQSCredito(creditoId){
       h+=`<td style="font-size:13px;font-weight:600">${mesN(d2.getMonth()+1)} ${d2.getFullYear()}</td>`;
       h+=`<td>${pnombre}</td>`;
       h+=`<td class="num pos"><b>${fmt(p.valor)}</b></td>`;
-      h+=`<td><button class="btn bgh xs" data-action="qs-edit-modal" data-pagoid="${p.id}" data-val="${p.valor}" data-pag="${pnombre}">✏</button></td>`;
+      h+=`<td><button class="btn bgh xs" data-action="qs-edit-modal" data-pagoid="${p.id}" data-val="${p.valor}" data-pag="${pnombre}" aria-label="Editar pago">Editar</button></td>`;
       h+=`</tr>`;
     });
     h+=`</table></div>`;
@@ -968,7 +1076,7 @@ async function vQSCredito(creditoId){
     const mes=document.getElementById('qs-mes-modal').value;
     const pagadorId=document.getElementById('qs-pag-modal').value;
     const v=+document.getElementById('qs-val-modal').value;
-    if(!v){toast('⚠ Ingresa el valor');return}
+    if(!v){toast('Escribe el valor.');return}
     const btn=this; btn.disabled=true; btn.textContent='Guardando…';
     const{error}=await SB.from('qs_pagos').upsert({
       qs_credito_id:creditoId,
@@ -976,7 +1084,7 @@ async function vQSCredito(creditoId){
       mes:mes,
       valor:v
     },{onConflict:'qs_pagador_id,mes'});
-    if(error){toast('Error: '+error.message);btn.disabled=false;btn.textContent='Guardar';return}
+    if(error){toast(errTxt('guardar el pago',error),5000);btn.disabled=false;btn.textContent='Guardar';return}
     toast('Pago registrado ✓');
     // Refresh modal + main view
     await rQS();
@@ -1000,7 +1108,7 @@ document.addEventListener('click', async e=>{
   </div>`;
   document.getElementById(`qsed-sav-${pagoId}`).onclick=async()=>{
     const v=+document.getElementById(`qsed-${pagoId}`).value;
-    if(!v){toast('⚠ Valor inválido');return}
+    if(!v){toast('Escribe un valor mayor a cero.');return}
     await SB.from('qs_pagos').update({valor:v}).eq('id',pagoId);
     toast('Actualizado ✓');
     // Find which credito to refresh
@@ -1008,11 +1116,9 @@ document.addEventListener('click', async e=>{
     if(p){await rQS();vQSCredito(p.qs_credito_id)}
   };
   document.getElementById(`qsed-del-${pagoId}`).onclick=async()=>{
-    if(!confirm('¿Eliminar este pago?'))return;
     const{data:p}=await SB.from('qs_pagos').select('qs_credito_id').eq('id',pagoId).single();
-    await SB.from('qs_pagos').delete().eq('id',pagoId);
-    toast('Eliminado');
-    if(p){await rQS();vQSCredito(p.qs_credito_id)}
+    await borrarConDeshacer({tabla:'qs_pagos',id:pagoId,msg:'Pago eliminado',
+      despues:async()=>{if(p){await rQS();await vQSCredito(p.qs_credito_id)}}});
   };
 });
 
@@ -1033,14 +1139,8 @@ async function rP(){
   const gN=(gas||[]).filter(g=>g.naturaleza==='Necesidades').reduce((a,g)=>a+(+g.valor),0);
   const gD=(gas||[]).filter(g=>g.naturaleza==='Deseos').reduce((a,g)=>a+(+g.valor),0);
   const gA=(gas||[]).filter(g=>g.naturaleza==='Ahorros').reduce((a,g)=>a+(+g.valor),0);
-  const pv=new Date(anioV,mesV-2,1),nv=new Date(anioV,mesV,1);
   $('#main').innerHTML=`
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
-    <button class="btn bgh sm" onclick="mesV=${pv.getMonth()+1};anioV=${pv.getFullYear()};rP()">‹</button>
-    <h2 style="font-size:16px;font-weight:700">${mesN(mesV)} ${anioV}</h2>
-    <button class="btn bgh sm" onclick="mesV=${nv.getMonth()+1};anioV=${nv.getFullYear()};rP()">›</button>
-    <button class="btn bfo sm" style="margin-left:auto" onclick="mPre(${pN},${pD},${pA})">⚙ Regla ${pN}/${pD}/${pA}</button>
-  </div>
+  ${barraMes(`<button class="btn bfo sm" style="margin-left:auto" onclick="mPre(${pN},${pD},${pA})">Regla ${pN}/${pD}/${pA}</button>`)}
   <div class="g3" style="margin-bottom:18px">
     <div class="sc"><div class="sl">Ingresos</div><div class="sv pos">${fmt(tI)}</div>
       <button class="btn bgh sm" style="margin-top:8px;width:100%" onclick="mIng()">＋ Registrar</button></div>
@@ -1058,14 +1158,14 @@ async function rP(){
     <div class="card"><div class="ctit">Ingresos <button class="btn bgo sm" onclick="mIng()">＋</button></div>
       ${!ing?.length?'<div class="empty"><p>Sin ingresos. Haz clic en ＋.</p></div>':''}
       <div class="tw"><table>${(ing||[]).map(r=>`<tr class="hv"><td>${r.concepto}</td><td class="num pos"><b>${fmt(r.valor)}</b></td>
-        <td><button class="btn bda xs" onclick="SB.from('ingresos').delete().eq('id','${r.id}').then(rP)">✕</button></td></tr>`).join('')}</table></div>
+        <td><button class="btn bda xs" aria-label="Eliminar ingreso" onclick="borrarConDeshacer({tabla:'ingresos',id:'${r.id}',msg:'Ingreso eliminado',despues:rP})">✕</button></td></tr>`).join('')}</table></div>
     </div>
     <div class="card"><div class="ctit">Gastos <button class="btn bgo sm" onclick="mGas()">＋</button></div>
       ${!gas?.length?'<div class="empty"><p>Sin gastos. Agrega manualmente o importa en Extractos.</p></div>':''}
       <div class="tw" style="max-height:420px;overflow-y:auto"><table>
         ${(gas||[]).map(g=>`<tr class="hv"><td><b>${g.concepto}</b><div style="font-size:11px;color:var(--muted)">${g.naturaleza}·${g.categoria}</div></td>
           <td class="num neg"><b>${fmt(g.valor)}</b></td>
-          <td><button class="btn bda xs" onclick="SB.from('gastos').delete().eq('id','${g.id}').then(rP)">✕</button></td></tr>`).join('')}
+          <td><button class="btn bda xs" aria-label="Eliminar gasto" onclick="borrarConDeshacer({tabla:'gastos',id:'${g.id}',msg:'Gasto eliminado',despues:rP})">✕</button></td></tr>`).join('')}
       </table></div>
     </div>
   </div>`;
@@ -1078,7 +1178,7 @@ function mPre(n,d,a){
   <button class="btn bfo" style="width:100%" id="btn-sav-pre">Guardar</button>`);
   document.getElementById('btn-sav-pre').onclick=async()=>{
     const n=+document.getElementById('pn').value,d=+document.getElementById('pd').value,a=+document.getElementById('pa').value;
-    if(n+d+a!==100)return toast('⚠ Deben sumar 100%');
+    if(n+d+a!==100)return toast('Los tres porcentajes deben sumar 100 %.',3500);
     await SB.from('presupuestos').upsert({usuario_id:U.id,anio:anioV,mes:mesV,pct_necesidades:n,pct_deseos:d,pct_ahorros:a},{onConflict:'usuario_id,anio,mes'});
     toast('Guardado ✓');closeM();rP();
   };
@@ -1091,7 +1191,7 @@ function mIng(){
   <button class="btn bfo" style="width:100%" id="btn-sav-ing">Guardar</button>`);
   document.getElementById('btn-sav-ing').onclick=async()=>{
     const c=document.getElementById('ic').value.trim(),v=+document.getElementById('iv').value;
-    if(!c||!v)return toast('⚠ Completa los campos');
+    if(!c||!v)return toast('Completa el concepto y el valor.');
     await SB.from('ingresos').insert({usuario_id:U.id,anio:anioV,mes:mesV,concepto:c,valor:v,fecha:document.getElementById('if2').value});
     toast('Ingreso registrado ✓');closeM();rP();
   };
@@ -1107,7 +1207,7 @@ function mGas(){
   <button class="btn bfo" style="width:100%" id="btn-sav-gas">Guardar</button>`);
   document.getElementById('btn-sav-gas').onclick=async()=>{
     const c=document.getElementById('gc').value.trim(),v=+document.getElementById('gv').value;
-    if(!c||!v)return toast('⚠ Completa los campos');
+    if(!c||!v)return toast('Completa el concepto y el valor.');
     await SB.from('gastos').insert({usuario_id:U.id,anio:anioV,mes:mesV,concepto:c,valor:v,fecha:document.getElementById('gf2').value,naturaleza:document.getElementById('gn').value,tipo:document.getElementById('gt').value,categoria:document.getElementById('gcat').value,fuente:'manual'});
     toast('Gasto registrado ✓');closeM();rP();
   };
@@ -1128,7 +1228,7 @@ async function rA(){
     <div class="sc"><div class="sl">Por ahorrar</div><div class="sv warn">${fmt(Math.max(tO-tA,0))}</div></div>
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <h2 style="font-size:16px;font-weight:700">Objetivos de ahorro</h2>
+    <h2 style="font-size:16px;font-weight:700">Metas de ahorro</h2>
     <button class="btn bgo" onclick="mNAh()">＋ Nuevo objetivo</button>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">
@@ -1138,7 +1238,7 @@ async function rA(){
         <div><div style="font-weight:700;font-size:14.5px">${s.nombre}</div>
           ${s.fecha_meta?`<div style="font-size:11.5px;color:var(--muted)">Meta: ${ff(s.fecha_meta)}</div>`:''}
         </div>
-        <span style="font-size:18px;font-weight:800;color:${s.color||'var(--green)'}">${pct>=100?'✅':pct.toFixed(0)+'%'}</span>
+        <span style="font-size:18px;font-weight:800;color:${s.color||'var(--green)'}">${pct>=100?'Lograda':pct.toFixed(0)+'%'}</span>
       </div>
       <div class="pw" style="height:9px"><div class="pb" style="width:${Math.min(pct,100)}%;background:${s.color||'var(--forest3)'}"></div></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:7px">
@@ -1146,10 +1246,21 @@ async function rA(){
       </div>
       <div style="margin-top:10px;display:flex;gap:6px">
         <button class="btn bfo sm" onclick="mAp('${s.id}')">＋ Abonar</button>
-        <button class="btn bda xs" onclick="if(confirm('¿Eliminar?'))SB.from('ahorros').update({activo:false}).eq('id','${s.id}').then(rA)">✕</button>
+        <button class="btn bda xs" aria-label="Archivar meta" onclick="archivarMeta('${s.id}')">✕</button>
       </div>
     </div>`;}).join('')}
   </div>`;
+}
+// Las metas no se borran: se archivan (activo=false) y se pueden recuperar con Deshacer.
+async function archivarMeta(id){
+  const{error}=await SB.from('ahorros').update({activo:false}).eq('id',id);
+  if(error)return toast(errTxt('archivar la meta',error),5000);
+  await rA();
+  toastDeshacer('Meta archivada',async()=>{
+    const{error:e2}=await SB.from('ahorros').update({activo:true}).eq('id',id);
+    if(e2){console.error(e2);return false}
+    await rA();return true;
+  });
 }
 function mNAh(){
   openM(`<h3>Nuevo objetivo <span class="mx" onclick="closeM()">×</span></h3>
@@ -1162,7 +1273,7 @@ function mNAh(){
   <button class="btn bfo" style="width:100%" id="btn-sav-ah">Crear</button>`);
   document.getElementById('btn-sav-ah').onclick=async()=>{
     const n=document.getElementById('an').value.trim(),o=+document.getElementById('ao').value;
-    if(!n||!o)return toast('⚠ Nombre y objetivo requeridos');
+    if(!n||!o)return toast('Completa el nombre y el objetivo.');
     await SB.from('ahorros').insert({usuario_id:U.id,nombre:n,objetivo:o,acumulado:+document.getElementById('ai').value,fecha_inicio:document.getElementById('afi').value,fecha_meta:document.getElementById('am').value||null,color:document.getElementById('ac').value});
     toast('Objetivo creado ✓');closeM();rA();
   };
@@ -1175,7 +1286,7 @@ function mAp(id){
   <button class="btn bfo" style="width:100%" id="btn-sav-ap">Abonar</button>`);
   document.getElementById('btn-sav-ap').onclick=async()=>{
     const v=+document.getElementById('apv').value;
-    if(!v)return toast('⚠ Ingresa el valor');
+    if(!v)return toast('Escribe el valor.');
     const{data:ah}=await SB.from('ahorros').select('acumulado').eq('id',id).single();
     await Promise.all([
       SB.from('aportes_ahorro').insert({ahorro_id:id,valor:v,fecha:document.getElementById('apf').value,nota:document.getElementById('apn').value}),
@@ -1198,7 +1309,7 @@ async function rL(){
   $('#main').innerHTML=`
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
     <div>
-      <h2 style="font-size:16px;font-weight:700">Libros contables</h2>
+      <h2 style="font-size:16px;font-weight:700">Fondos</h2>
       <p style="font-size:12.5px;color:var(--muted);margin-top:3px">Registros históricos de fondos y préstamos no activos. Conviértelos en obligación cuando decidas cobrarlos.</p>
     </div>
     <button class="btn bgo" onclick="mNLib()">＋ Nuevo</button>
@@ -1231,7 +1342,7 @@ async function rL(){
       h+=`</div>`;
       h+=`<div style="display:flex;gap:6px;flex-wrap:wrap">`;
       h+=`<button class="btn bfo xs" data-action="lib-add" data-libroid="${lib.id}">＋ Movimiento</button>`;
-      h+=`<button class="btn bgh xs" data-action="lib-edit" data-libroid="${lib.id}" data-nombre="${lib.nombre.replace(/"/g,'&quot;')}" data-desc="${(lib.descripcion||'').replace(/"/g,'&quot;')}">✏ Editar</button>`;
+      h+=`<button class="btn bgh xs" data-action="lib-edit" data-libroid="${lib.id}" data-nombre="${lib.nombre.replace(/"/g,'&quot;')}" data-desc="${(lib.descripcion||'').replace(/"/g,'&quot;')}">Editar</button>`;
       h+=`<button class="btn bgh xs" data-action="lib-toobl" data-libroid="${lib.id}" data-nombre="${lib.nombre.replace(/"/g,'&quot;')}" data-saldo="${Math.abs(sal)}">→ Obligación</button>`;
       h+=`<button class="btn bda xs" data-action="lib-del" data-libroid="${lib.id}" style="margin-left:auto">✕</button>`;
       h+=`</div></div>`;
@@ -1248,8 +1359,7 @@ document.addEventListener('click', e=>{
   else if(action==='lib-edit') mEditLib(id,btn.dataset.nombre,btn.dataset.desc);
   else if(action==='lib-toobl') mLibToObl(id,btn.dataset.nombre,+btn.dataset.saldo);
   else if(action==='lib-del'){
-    if(confirm('¿Eliminar este libro y todo su historial?'))
-      SB.from('libros').delete().eq('id',id).then(rL);
+    borrarConDeshacer({tabla:'libros',id,hijos:[{tabla:'libro_movimientos',fk:'libro_id'}],msg:'Fondo eliminado',despues:rL});
   }
 });
 
@@ -1261,7 +1371,7 @@ function mNLib(){
   <button class="btn bfo" style="width:100%" id="btn-sav-nlib">Crear libro</button>`);
   document.getElementById('btn-sav-nlib').onclick=async()=>{
     const n=document.getElementById('ln').value.trim();
-    if(!n)return toast('⚠ Ingresa un nombre');
+    if(!n)return toast('Escribe un nombre.');
     const{data:lib}=await SB.from('libros').insert({usuario_id:U.id,nombre:n,descripcion:document.getElementById('ld2').value||''}).select().single();
     const s=+document.getElementById('ls').value;
     if(lib&&s!==0) await SB.from('libro_movimientos').insert({libro_id:lib.id,fecha:hoy(),concepto:'Saldo inicial',valor:s});
@@ -1277,7 +1387,7 @@ function mAddMovLib(libroId){
   <button class="btn bfo" style="width:100%" id="btn-sav-mov">Registrar</button>`);
   document.getElementById('btn-sav-mov').onclick=async()=>{
     const c=document.getElementById('mc').value.trim(),v=+document.getElementById('mv').value;
-    if(!c||!v)return toast('⚠ Completa concepto y valor');
+    if(!c||!v)return toast('Completa el concepto y el valor.');
     await SB.from('libro_movimientos').insert({libro_id:libroId,fecha:document.getElementById('mf').value,concepto:c,valor:v});
     toast('Movimiento registrado ✓');closeM();rL();
   };
@@ -1289,7 +1399,7 @@ function mEditLib(id,nombre,desc){
   <button class="btn bfo" style="width:100%" id="btn-sav-elib">Guardar</button>`);
   document.getElementById('btn-sav-elib').onclick=async()=>{
     const n=document.getElementById('en2').value.trim();
-    if(!n)return toast('⚠ Ingresa un nombre');
+    if(!n)return toast('Escribe un nombre.');
     await SB.from('libros').update({nombre:n,descripcion:document.getElementById('ed2').value||''}).eq('id',id);
     toast('Actualizado ✓');closeM();rL();
   };
@@ -1304,7 +1414,7 @@ function mLibToObl(libroId,nombre,saldo){
   <button class="btn bfo" style="width:100%" id="btn-sav-toobl">Crear obligación</button>`);
   document.getElementById('btn-sav-toobl').onclick=async()=>{
     const nom=document.getElementById('ton').value.trim(),m=+document.getElementById('tom').value;
-    if(!nom||!m)return toast('⚠ Completa nombre y monto');
+    if(!nom||!m)return toast('Completa el nombre y el monto.');
     const uid=U.id;
     const{data:obl}=await SB.from('obligaciones').insert({
       titular_id:uid,deudor_id:uid,nombre:nom,descripcion:document.getElementById('tos').value,
@@ -1322,10 +1432,11 @@ function mLibToObl(libroId,nombre,saldo){
 let extB=[];
 async function rE(){
   $('#main').innerHTML=`
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px">
-    <h2 style="font-size:16px;font-weight:700">Extractos bancarios</h2>
-    <button class="btn bgh sm" onclick="dlPl()">⬇ Plantilla Excel</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px">
+    <h2 style="font-size:16px;font-weight:700">Importar estado de cuenta</h2>
+    <button class="btn bgh sm" onclick="dlPl()">Descargar plantilla Excel</button>
   </div>
+  ${barraMes('<span style="font-size:12.5px;color:var(--muted)">Los movimientos se registran en este mes.</span>')}
   <div class="card" style="margin-bottom:18px">
     <div class="ctit">Subir estado de cuenta</div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1334,7 +1445,6 @@ async function rE(){
       <b>Excel:</b> Descarga la plantilla, completa y sube. Elige destino al importar.
     </p>
     <div style="border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;background:var(--cream);cursor:pointer" onclick="$('#finp').click()">
-      <div style="font-size:32px;margin-bottom:6px">📄</div>
       <div style="font-weight:600;color:var(--forest)">Haz clic para seleccionar</div>
       <div style="font-size:12px;color:var(--muted);margin-top:3px">.pdf · .xlsx · .xls · .csv</div>
     </div>
@@ -1363,10 +1473,10 @@ async function procExt(e){
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf') await parsePDF(file);else await parseXLS(file);
   if(extB.length) renderPrev();
-  else toast('⚠ No se detectaron movimientos.',5000);
+  else toast('No se encontraron movimientos en el archivo. Revisa que sea un estado de cuenta compatible o usa la plantilla Excel.',6000);
 }
 async function parsePDF(file){
-  if(typeof pdfjsLib==='undefined')return toast('⚠ Error cargando pdf.js',4000);
+  if(typeof pdfjsLib==='undefined')return toast('No se pudo cargar el lector de PDF. Revisa tu conexión y recarga la página.',5000);
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const ab=await file.arrayBuffer();
   let allLines=[];
@@ -1386,7 +1496,7 @@ async function parsePDF(file){
         if(linea)allLines.push(linea);
       });
     }
-  }catch(e){toast('⚠ Error leyendo PDF: '+e.message,4000);return}
+  }catch(e){console.error(e);toast('No se pudo leer el PDF. Usa el PDF digital que descargas del banco, no uno escaneado.',6000);return}
   const texto=allLines.join('\n');
   const banco=detBanco(texto);
   if(banco==='PacifiCard') parsPC(allLines);
@@ -1474,7 +1584,7 @@ function parsGen(lineas,banco){
   }
 }
 async function parseXLS(file){
-  if(typeof XLSX==='undefined')return toast('⚠ Error cargando Excel',4000);
+  if(typeof XLSX==='undefined')return toast('No se pudo cargar el lector de Excel. Revisa tu conexión y recarga la página.',5000);
   const ab=await file.arrayBuffer();const wb=XLSX.read(ab,{type:'array'});
   const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   if(!rows.length)return;
@@ -1527,12 +1637,12 @@ async function impExt(){
   const dest=document.querySelector('input[name=dest]:checked')?.value||'gastos';
   const uid=U.id;
   const sel=extB.map((r,i)=>{const ck=document.getElementById('ck'+i),cat=document.getElementById('cat'+i);if(!ck?.checked)return null;
-    return{...r,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:MES,anio_periodo:ANIO}}).filter(Boolean);
-  if(!sel.length)return toast('⚠ Selecciona al menos uno');
+    return{...r,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:mesV,anio_periodo:anioV}}).filter(Boolean);
+  if(!sel.length)return toast('Marca al menos un movimiento para importar.');
   await SB.from('extractos').insert(sel);
   if(dest==='gastos'){const g=sel.filter(r=>r.tipo_op!=='PAGO'&&r.tipo_op!=='ND').map(r=>({usuario_id:uid,anio:anioV,mes:mesV,fecha:r.fecha_tx,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:'Necesidades',tipo:'variable',fuente:'importado',banco_origen:r.banco}));if(g.length)await SB.from('gastos').insert(g)}
   else if(dest==='ingresos'){const g=sel.filter(r=>r.tipo_op==='PAGO').map(r=>({usuario_id:uid,anio:anioV,mes:mesV,concepto:r.concepto,valor:r.valor,fecha:r.fecha_tx}));if(g.length)await SB.from('ingresos').insert(g)}
-  toast(`✓ ${sel.length} movimientos importados`);$('#prev-ext').style.display='none';extB=[];$('#finp').value='';carHist();
+  toast(`${sel.length} movimientos importados en ${mesN(mesV)} ${anioV} ✓`,3500);$('#prev-ext').style.display='none';extB=[];$('#finp').value='';carHist();
 }
 function dlPl(){
   if(typeof XLSX==='undefined')return;
@@ -1576,7 +1686,7 @@ async function rN(){
         <td id="nb${i}"><span class="badge bm">— calcula →</span></td></tr>`).join('')}
     </table></div>
     <div id="res-n" style="margin-top:14px"></div>
-  </div>`:'<div class="empty"><p>No tienes deudas propias activas. ¡Excelente posición! 🎉</p></div>'}`;
+  </div>`:'<div class="empty"><p>No tienes deudas propias activas. ¡Excelente posición!</p></div>'}`;
   window._dn=d;
 }
 function calcN(){
