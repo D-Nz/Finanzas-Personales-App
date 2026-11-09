@@ -1436,7 +1436,7 @@ async function rE(){
     <h2 style="font-size:16px;font-weight:700">Importar estado de cuenta</h2>
     <button class="btn bgh sm" onclick="dlPl()">Descargar plantilla Excel</button>
   </div>
-  ${barraMes('<span style="font-size:12.5px;color:var(--muted)">Los movimientos se registran en este mes.</span>')}
+  <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px">La app lee la fecha de corte del estado de cuenta: cada consumo y pago va a su mes, y las cuotas de diferidos y cargos van al mes del corte.</p>
   <div class="card" style="margin-bottom:18px">
     <div class="ctit">Subir estado de cuenta</div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1451,8 +1451,69 @@ async function rE(){
     <input type="file" id="finp" accept=".pdf,.xlsx,.xls,.csv" style="display:none" onchange="procExt(event)">
   </div>
   <div id="prev-ext" style="display:none;margin-bottom:18px"></div>
-  <div class="card"><div class="ctit">Historial importado</div><div id="hist-ext"><div class="spin"></div></div></div>`;
+  <div class="card"><div class="ctit">Historial importado <button class="btn bda sm" onclick="mBorrarImportados()">Borrar historial importado</button></div><div id="hist-ext"><div class="spin"></div></div></div>`;
   carHist();
+}
+// Reúne todo lo que dejó la importación: historial, gastos importados,
+// pagos guardados como ingreso (coinciden con un PAGO del historial) y deudas creadas desde diferidos.
+async function reunirImportados(){
+  const uid=U.id;
+  const[ext,gas,ing,obl]=await Promise.all([
+    SB.from('extractos').select('*').eq('usuario_id',uid),
+    SB.from('gastos').select('*').eq('usuario_id',uid).eq('fuente','importado'),
+    SB.from('ingresos').select('*').eq('usuario_id',uid),
+    SB.from('obligaciones').select('*,cuotas(*)').eq('titular_id',uid).ilike('notas','%[dif:%')
+  ]);
+  const err=ext.error||gas.error||ing.error||obl.error;
+  if(err)throw err;
+  const pagos=new Set((ext.data||[]).filter(r=>r.tipo_op==='PAGO').map(r=>r.concepto+'|'+(+r.valor).toFixed(2)));
+  return{extractos:ext.data||[],gastos:gas.data||[],
+    ingresos:(ing.data||[]).filter(r=>pagos.has(r.concepto+'|'+(+r.valor).toFixed(2))),
+    obligaciones:obl.data||[]};
+}
+let _imp=null;
+async function mBorrarImportados(){
+  openM(ld());
+  try{_imp=await reunirImportados()}catch(e){closeM();return toast(errTxt('revisar lo importado',e),5000)}
+  const n=k=>_imp[k].length;
+  if(!n('extractos')&&!n('gastos')&&!n('ingresos')&&!n('obligaciones')){closeM();return toast('No hay nada importado para borrar.')}
+  const fila=(k,txt,det)=>`<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
+    <input type="checkbox" id="bi-${k}" ${n(k)?'checked':'disabled'} style="width:auto;margin-top:3px">
+    <span><b>${txt} (${n(k)})</b><br><span style="font-size:12px;color:var(--muted)">${det}</span></span></label>`;
+  openM(`<h3>Borrar historial importado <span class="mx" onclick="closeM()">×</span></h3>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:8px">Elige qué borrar. Tendrás unos segundos para deshacer.</p>
+  ${fila('extractos','Historial de estados de cuenta','Las líneas guardadas en "Historial importado".')}
+  ${fila('gastos','Gastos importados','Gastos de Mi mes que vinieron de un estado de cuenta. Los que registraste a mano no se tocan.')}
+  ${fila('ingresos','Pagos a la tarjeta registrados como ingreso','Ingresos que coinciden con un pago del historial importado.')}
+  ${fila('obligaciones','Deudas creadas desde diferidos','Incluye sus cuotas y los pagos que hayas registrado en ellas.')}
+  <button class="btn bda" style="width:100%;margin-top:14px" id="btn-borrar-imp">Borrar lo seleccionado</button>`);
+  document.getElementById('btn-borrar-imp').onclick=borrarImportados;
+}
+async function borrarEnLotes(tabla,ids){for(let i=0;i<ids.length;i+=100){const{error}=await SB.from(tabla).delete().in('id',ids.slice(i,i+100));if(error)throw error}}
+async function insertarEnLotes(tabla,filas){for(let i=0;i<filas.length;i+=200){const{error}=await SB.from(tabla).insert(filas.slice(i,i+200));if(error)throw error}}
+async function borrarImportados(){
+  const elegir=k=>document.getElementById('bi-'+k)?.checked?_imp[k]:[];
+  const c={extractos:elegir('extractos'),gastos:elegir('gastos'),ingresos:elegir('ingresos'),obligaciones:elegir('obligaciones')};
+  const total=c.extractos.length+c.gastos.length+c.ingresos.length+c.obligaciones.length;
+  if(!total)return toast('Marca al menos una opción.');
+  const btn=document.getElementById('btn-borrar-imp');btn.disabled=true;btn.textContent='Borrando…';
+  // Copia para deshacer (las cuotas se borran en cascada con su deuda)
+  const obls=c.obligaciones.map(({cuotas,...o})=>o), cuotas=c.obligaciones.flatMap(o=>o.cuotas||[]);
+  try{
+    await borrarEnLotes('obligaciones',obls.map(o=>o.id));
+    await borrarEnLotes('gastos',c.gastos.map(r=>r.id));
+    await borrarEnLotes('ingresos',c.ingresos.map(r=>r.id));
+    await borrarEnLotes('extractos',c.extractos.map(r=>r.id));
+  }catch(e){btn.disabled=false;btn.textContent='Borrar lo seleccionado';return toast(errTxt('borrar todo lo seleccionado',e),6000)}
+  closeM();carHist();
+  toastDeshacer(`Borrados ${total} registros importados`,async()=>{
+    try{
+      await insertarEnLotes('obligaciones',obls);await insertarEnLotes('cuotas',cuotas);
+      await insertarEnLotes('gastos',c.gastos);await insertarEnLotes('ingresos',c.ingresos);
+      await insertarEnLotes('extractos',c.extractos);
+    }catch(e){console.error(e);return false}
+    carHist();return true;
+  });
 }
 async function carHist(){
   const{data}=await SB.from('extractos').select('*').eq('usuario_id',U.id).order('created_at',{ascending:false}).limit(80);
@@ -1469,10 +1530,14 @@ async function carHist(){
 }
 async function procExt(e){
   const file=e.target.files[0];if(!file)return;
-  extB=[];toast('Procesando…',3000);
+  extB=[];_lineasExt=[];toast('Procesando…',3000);
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf') await parsePDF(file);else await parseXLS(file);
-  if(extB.length){await cargarDeudasTarjeta();renderPrev();}
+  if(extB.length){
+    extB.forEach(r=>{if(r.banco!=='Excel'&&r.fecha_tx){const[,mm,dd]=r.fecha_tx.split('-').map(Number);r._mm=mm;r._dd=dd}});
+    _corte=detectarCorte(_lineasExt,extB);ajustarAnios();
+    await cargarDeudasTarjeta();renderPrev();
+  }
   else toast('No se encontraron movimientos en el archivo. Revisa que sea un estado de cuenta compatible o usa la plantilla Excel.',6000);
 }
 async function parsePDF(file){
@@ -1497,6 +1562,7 @@ async function parsePDF(file){
       });
     }
   }catch(e){console.error(e);toast('No se pudo leer el PDF. Usa el PDF digital que descargas del banco, no uno escaneado.',6000);return}
+  _lineasExt=allLines;
   const texto=allLines.join('\n');
   const banco=detBanco(texto);
   if(banco==='PacifiCard') parsPC(allLines);
@@ -1514,24 +1580,27 @@ function detBanco(t){
 const MESES2={ENE:1,FEB:2,MAR:3,ABR:4,MAY:5,JUN:6,JUL:7,AGO:8,SEP:9,OCT:10,NOV:11,DIC:12};
 function parsPC(lineas){
   let sec=false;
-  const re=/^([A-Z]{3})\/(\d{1,2})\s+(\d+)\s+(.+?)\s+(?:(\d{1,2})\/(\d{1,2})\s+)?(CONS|DIF|PAGO|N\/D|AV)\s+([\d,\.]+)/;
+  const re=/^([A-Z]{3})\/(\d{1,2})\s+(\d+)\s+(.+?)\s+(?:(\d{1,2})\/(\d{1,2})\s+)?(CONS|DIF|PAGO|N\/D|AV)\s+([\d,\.]+)(?:\s*[+-]\s*(\d{1,3}(?:,\d{3})*\.\d{2}))?/;
   for(const l of lineas){
     if(l.includes('DETALLE DE MOVIMIENTOS')){sec=true;continue}
     if(!sec)continue;
     if(l.includes('TOTAL PAGO DE CONTADO')||l.includes('CONCEPTOS BÁSICOS'))break;
     const m=re.exec(l);
     if(m){
-      const[,mes,dia,,desc,cn,ct,tipo,val]=m;
+      const[,mes,dia,,desc,cn,ct,tipo,val,sdif]=m;
       const mn=MESES2[mes]||MES;
       const v=parseFloat(val.replace(/,(?=\d{3})/g,'').replace(',','.'));
       const cuota=cn?` (${cn}/${ct})`:'';
-      if(v>0)extB.push({banco:'PacifiCard',fecha_tx:`${ANIO}-${String(mn).padStart(2,'0')}-${String(dia).padStart(2,'0')}`,concepto:(desc.trim().replace(/\s+/g,' '))+cuota,tipo_op:tipo,valor:v,categoria:acat(desc)});
+      if(v>0)extB.push({banco:'PacifiCard',fecha_tx:`${ANIO}-${String(mn).padStart(2,'0')}-${String(dia).padStart(2,'0')}`,concepto:(desc.trim().replace(/\s+/g,' '))+cuota,tipo_op:tipo,valor:v,categoria:acat(desc),
+        _saldoDif:tipo==='DIF'&&sdif?parseFloat(sdif.replace(/,/g,'')):undefined});
     }
   }
 }
 function parsDC(lineas,banco){
   let sec=false;
-  const re=/(\d{2})\/(\d{2})\s+(\d+)\s+(.+?)\s{2,}(?:\((\d+)\/(\d+)\)\s+)?([\d,\.]+)(?:\s*-|\s*$)/;
+  // FECHA  Nº VALE  ESTABLECIMIENTO  [CUOTA 03/06 o (3/6)]  VALOR  [IVA / SALDO DIF.]  [-]
+  // El valor es el PRIMER monto después del establecimiento; los siguientes (IVA, saldo diferido) se ignoran.
+  const re=/^\s*(\d{2})\/(\d{2})\s+(\d+)\s+(.+?)\s{2,}(?:\(?(\d{1,2})\/(\d{1,2})\)?\s+)?(\d{1,3}(?:\.\d{3})*,\d{2})-?(?:\s+\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?-?)*\s*$/;
   for(const l of lineas){
     if(l.includes('Consumo período actual')||l.includes('Detalle débitos y créditos')){sec=true;continue}
     if(!sec)continue;
@@ -1553,7 +1622,7 @@ function parsDC(lineas,banco){
 }
 function parsPI(lineas){
   let sec=false;
-  const reMain=/^(\d{2})\/(\d{2})\s+(\d+)\s+(.+?)\s+(DIFERIDO|CONSUMO|N\/D|PAGO)\s*(?:\((\d+)\/(\d+)\))?(?:\s+[A-Z]{2,3}\b)?\s+([\d.,]+)/;
+  const reMain=/^(\d{2})\/(\d{2})\s+(\d+)\s+(.+?)\s+(DIFERIDO|CONSUMO|N\/D|PAGO)\s*(?:\((\d+)\/(\d+)\))?(?:\s+[A-Z][A-Z0-9]{1,3}\b)?\s+([\d.,]+)(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2})\b)?/;
   const rePago=/^(\d{2})\/(\d{2})\s+(\d+)\s+(SU PAGO.+?)\s+([\d.,]+)-\s*$/;
   for(const l of lineas){
     if(l.includes('DETALLE DE MOVIMIENTOS')){sec=true;continue}
@@ -1564,12 +1633,13 @@ function parsPI(lineas){
     if(mp){const[,dd,mm,,desc,val]=mp;const v=parseFloat(val.replace(/\./g,'').replace(',','.'));if(v>0)extB.push({banco:'Pichincha',fecha_tx:`${ANIO}-${mm}-${dd}`,concepto:desc.trim(),tipo_op:'PAGO',valor:v,categoria:'Pago'});continue}
     const m=reMain.exec(l);
     if(m){
-      const[,dd,mm,,desc,op,cn,ct,val]=m;
+      const[,dd,mm,,desc,op,cn,ct,val,sdif]=m;
       const v=parseFloat(val.replace(/\./g,'').replace(',','.'));
       if(v>0){
         let tipo='CONS';if(op==='DIFERIDO')tipo='DIF';else if(op==='N/D')tipo='ND';else if(op==='PAGO')tipo='PAGO';
         const cuota=cn?` (${cn}/${ct})`:'';
-        extB.push({banco:'Pichincha',fecha_tx:`${ANIO}-${mm}-${dd}`,concepto:(desc.trim().replace(/\s+/g,' ').replace(/\s+Q\s*$/,''))+cuota,tipo_op:tipo,valor:v,categoria:acat(desc)});
+        extB.push({banco:'Pichincha',fecha_tx:`${ANIO}-${mm}-${dd}`,concepto:(desc.trim().replace(/\s+/g,' ').replace(/\s+Q\s*$/,''))+cuota,tipo_op:tipo,valor:v,categoria:acat(desc),
+          _saldoDif:tipo==='DIF'&&sdif?parseFloat(sdif.replace(/\./g,'').replace(',','.')):undefined});
       }
     }
   }
@@ -1600,6 +1670,67 @@ async function parseXLS(file){
     if(desc&&val)extB.push({banco:'Excel',fecha_tx:null,concepto:String(desc).trim().slice(0,80),tipo_op:'CONS',valor:val,categoria:acat(String(desc))})}}
 }
 const CM={UBER:'Transporte',TAXI:'Transporte',EDS:'Transporte',GASOLINA:'Transporte',METROCAR:'Vehículo',TALLER:'Vehículo',NETFLIX:'Suscripciones',SPOTIFY:'Suscripciones',AMAZON:'Suscripciones',CRUNCHYROLL:'Suscripciones',YOUTUBE:'Suscripciones',DISNEY:'Suscripciones',MERCADO:'Alimentación',SUPERMAXI:'Alimentación',MCDONALDS:'Alimentación',KFC:'Alimentación',CLINICA:'Salud',FARMACIA:'Salud',HOSPITAL:'Salud',UDLA:'Educación',MUNICIPIO:'Servicios',INTERNET:'Servicios',TUENTI:'Servicios',SMARTFIT:'Deportes',PAGO:'Pago'};
+// ── Fecha de corte del estado de cuenta ──
+let _lineasExt=[], _corte=null;
+const MESES_ES={ENE:1,ENERO:1,FEB:2,FEBRERO:2,MAR:3,MARZO:3,ABR:4,ABRIL:4,MAY:5,MAYO:5,JUN:6,JUNIO:6,JUL:7,JULIO:7,
+  AGO:8,AGOSTO:8,SEP:9,SEPT:9,SEPTIEMBRE:9,SET:9,SETIEMBRE:9,OCT:10,OCTUBRE:10,NOV:11,NOVIEMBRE:11,DIC:12,DICIEMBRE:12};
+// Busca una fecha (dd/mm/aaaa, dd-mmm-aaaa, "25 de octubre de 2026"…) dentro de un texto.
+function leerFecha(t){
+  const sinAcento=t.normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+  let m=/(\d{1,2})\s*[\/\-\.]\s*(\d{1,2})\s*[\/\-\.]\s*(\d{2,4})/.exec(sinAcento);
+  if(m){let y=+m[3];if(y<100)y+=2000;const mo=+m[2],d=+m[1];if(mo>=1&&mo<=12&&d>=1&&d<=31)return{anio:y,mes:mo,dia:d}}
+  m=/(\d{1,2})\s*(?:DE\s+)?[\/\-\.\s]?\s*([A-Z]{3,10})\.?\s*(?:DE(?:L)?\s+)?[\/\-\.\s]?\s*(\d{2,4})/.exec(sinAcento);
+  if(m&&MESES_ES[m[2]]){let y=+m[3];if(y<100)y+=2000;return{anio:y,mes:MESES_ES[m[2]],dia:+m[1]}}
+  return null;
+}
+// 1) Fecha junto a una etiqueta del estado de cuenta (misma línea o las dos siguientes), en orden de prioridad:
+//    "Fecha de corte", "Fecha de emisión" (Pichincha), "Período hasta", "Corte al", "Fecha de facturación".
+// 2) Si no aparece: la fecha del último consumo o pago (con año de hoy o el anterior).
+const ETIQUETAS_CORTE=[/FECHA\s*(DE\s*)?CORTE/,/FECHA\s*(DE\s*)?EMISION/,/PERIODO\s*HASTA/,/CORTE\s*AL/,
+  /FECHA\s*(DE\s*)?FACTURACI/,/PERIODO\s*FACTURADO/,/ESTADO\s*DE\s*CUENTA\s*AL/];
+function detectarCorte(lineas,filas){
+  const U=lineas.map(l=>l.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase());
+  for(const et of ETIQUETAS_CORTE){
+    for(let i=0;i<U.length;i++){
+      const k=et.exec(U[i]);if(!k)continue;
+      for(const t of [U[i].slice(k.index),U[i+1]||'',U[i+2]||'']){
+        const f=leerFecha(t);
+        if(f&&f.anio>=2015&&f.anio<=ANIO+1)return{...f,origen:'pdf'};
+      }
+    }
+  }
+  const hoy=new Date();let mejor=null;
+  filas.forEach(r=>{
+    if(r.tipo_op==='DIF'||!r._mm)return;
+    let d=new Date(ANIO,r._mm-1,r._dd);if(d>hoy)d=new Date(ANIO-1,r._mm-1,r._dd);
+    if(!mejor||d>mejor)mejor=d;
+  });
+  if(mejor)return{anio:mejor.getFullYear(),mes:mejor.getMonth()+1,dia:mejor.getDate(),origen:'estimado'};
+  return{anio:ANIO,mes:MES,dia:null,origen:'estimado'};
+}
+// El PDF trae día/mes sin año: se usa el año del corte, o el anterior si la fecha quedaría después del corte.
+// En un diferido "(n/N)" la compra es de antes de su primera cuota (n-1 meses antes del corte).
+function ajustarAnios(){
+  if(!_corte)return;
+  extB.forEach(r=>{
+    if(!r._mm)return;
+    const q=r.tipo_op==='DIF'?cuotaDif(r.concepto):null;
+    const lim=q?new Date(_corte.anio,_corte.mes-1-(q.n-1)+1,0):new Date(_corte.anio,_corte.mes,0);
+    let y=_corte.anio,d=new Date(y,r._mm-1,r._dd),vueltas=0;
+    while(d>lim&&vueltas<6){y--;d=new Date(y,r._mm-1,r._dd);vueltas++}
+    r.fecha_tx=`${y}-${String(r._mm).padStart(2,'0')}-${String(r._dd).padStart(2,'0')}`;
+  });
+}
+const fechaCorteISO=()=>`${_corte.anio}-${String(_corte.mes).padStart(2,'0')}-${String(_corte.dia||1).padStart(2,'0')}`;
+// Mes al que va cada movimiento: consumos y pagos por su fecha; cuotas de diferidos y cargos por el corte.
+function mesDeFila(r){
+  if(r.tipo_op==='DIF'||r.tipo_op==='ND'||!r.fecha_tx)return{anio:_corte.anio,mes:_corte.mes,fecha:fechaCorteISO()};
+  const[y,m]=r.fecha_tx.split('-').map(Number);return{anio:y,mes:m,fecha:r.fecha_tx};
+}
+function cambiarCorte(v){
+  if(!v)return;const[y,m]=v.split('-').map(Number);
+  _corte={anio:y,mes:m,dia:null,origen:'manual'};ajustarAnios();renderPrev();
+}
 // ── Diferidos: compras a cuotas "(n/N)" del estado de cuenta → deudas con la tarjeta ──
 let _oblsLD=[], _difs=[];
 const TARJETA={Pichincha:'VISA BCO PICHINCHA',Diners:'DINERS CLUB',Discover:'DISCOVER',PacifiCard:'PACIFICARD'};
@@ -1620,13 +1751,14 @@ function agruparDiferidos(rows){
     const q=cuotaDif(r.concepto);if(!q||q.N<2||q.n<1||q.n>q.N)return;
     const base=baseDif(r.concepto);
     const k=[r.banco,base.toUpperCase(),q.n,q.N,r.valor].join('|');
-    if(!g[k])g[k]={banco:r.banco,base,n:q.n,N:q.N,valor:0,veces:0};
+    if(!g[k])g[k]={banco:r.banco,base,n:q.n,N:q.N,valor:0,veces:0,saldoBanco:0,conSaldo:true};
     g[k].valor=r2(g[k].valor+r.valor);g[k].veces++;
+    if(r._saldoDif>=0)g[k].saldoBanco=r2(g[k].saldoBanco+r._saldoDif);else g[k].conSaldo=false;
   });
-  return Object.values(g).map(d=>({...d,pendiente:r2(d.valor*(d.N-d.n+1)),marca:`[dif:${d.banco}|${d.base.toUpperCase()}|${d.N}]`}));
+  return Object.values(g).map(d=>({...d,pendiente:d.conSaldo?r2(d.saldoBanco+d.valor):r2(d.valor*(d.N-d.n+1)),marca:`[dif:${d.banco}|${d.base.toUpperCase()}|${d.N}]`}));
 }
 // Fecha (1.º de mes) de la cuota k, sabiendo que la cuota n se cobra en el mes que se está importando.
-function fechaCuotaDif(d,k){const x=new Date(anioV,mesV-1+(k-d.n),1);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-01`}
+function fechaCuotaDif(d,k){const x=new Date(_corte.anio,_corte.mes-1+(k-d.n),1);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-01`}
 function accionDifPorDefecto(d){
   const enlazada=_oblsLD.find(o=>(o.notas||'').includes(d.marca));
   return enlazada?'act:'+enlazada.id:'nueva';
@@ -1662,7 +1794,7 @@ async function aplicarDiferido(d,accion){
   if(accion==='nueva'){
     const{data:obl,error}=await SB.from('obligaciones').insert({
       titular_id:uid,deudor_id:uid,nombre:d.base,descripcion:'Avances / Tarjetas',segmento:'Avances / Tarjetas',
-      deudor_nombre:TARJETA[d.banco]||d.banco,monto_total:r2(d.valor*d.N),valor_cuota:d.valor,num_cuotas:d.N,
+      deudor_nombre:TARJETA[d.banco]||d.banco,monto_total:r2(d.valor*(d.n-1)+d.pendiente),valor_cuota:d.valor,num_cuotas:d.N,
       fecha_inicio:fechaCuotaDif(d,1),estado:'activa',es_deuda_propia:true,
       notas:`Diferido importado del estado de cuenta (${d.banco}).\n${d.marca}`
     }).select().single();
@@ -1671,7 +1803,7 @@ async function aplicarDiferido(d,accion){
     for(let k=1;k<=d.N;k++){
       const pagada=k<d.n;
       rows.push({obligacion_id:obl.id,numero:k,concepto:`Cuota ${k}`,fecha_prog:fechaCuotaDif(d,k),
-        valor_esperado:d.valor,valor_pagado:pagada?d.valor:0,estado:pagada?'pagado':'pendiente',fecha_pago:pagada?fechaCuotaDif(d,k):null});
+        valor_esperado:k===d.N?r2(d.pendiente-d.valor*(d.N-d.n)):d.valor,valor_pagado:pagada?d.valor:0,estado:pagada?'pagado':'pendiente',fecha_pago:pagada?fechaCuotaDif(d,k):null});
     }
     const{error:e2}=await SB.from('cuotas').insert(rows);
     if(e2){console.error(e2);await SB.from('obligaciones').delete().eq('id',obl.id);return 'error'}
@@ -1694,6 +1826,12 @@ function renderPrev(){
   const el=$('#prev-ext');el.style.display='block';
   el.innerHTML=`<div class="card">
     <div class="ctit">${extB.length} movimientos — <span class="badge bm">${[...new Set(extB.map(r=>r.banco))].join(', ')}</span></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--cream);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:13px">
+      <span><b>Estado de cuenta de ${mesN(_corte.mes)} ${_corte.anio}</b>${_corte.dia?` · corte al ${_corte.dia}`:''}</span>
+      <span style="color:var(--muted)">${_corte.origen==='pdf'?'Fecha leída del PDF.':_corte.origen==='manual'?'Mes elegido por ti.':'No encontré la fecha de corte; la estimé con el último movimiento. Cámbiala si no es correcta.'}</span>
+      <label style="margin-left:auto;display:flex;align-items:center;gap:6px">Mes del corte
+        <input type="month" id="ext-mes" value="${_corte.anio}-${String(_corte.mes).padStart(2,'0')}" onchange="cambiarCorte(this.value)" style="border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-family:inherit"></label>
+    </div>
     <div style="background:var(--amber-bg);border-radius:9px;padding:12px;font-size:13px;color:var(--amber);margin-bottom:12px">
       <b>¿Dónde importar?</b>
       <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
@@ -1711,7 +1849,7 @@ function renderPrev(){
     <table><tr><th style="width:32px"></th><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="num">Valor</th><th>Categoría</th></tr>
     ${extB.map((r,i)=>`<tr>
       <td><input type="checkbox" id="ck${i}" checked></td>
-      <td style="font-size:12px">${r.fecha_tx?ff(r.fecha_tx):'—'}</td>
+      <td style="font-size:12px">${r.fecha_tx?ff(r.fecha_tx):'—'}<div style="font-size:10px;color:var(--muted)">va a ${(m=>mesN(m.mes)+' '+m.anio)(mesDeFila(r))}</div></td>
       <td><div style="font-size:13px;font-weight:600">${r.concepto.slice(0,48)}</div><div style="font-size:10px;color:var(--muted)">${r.banco}</div></td>
       <td><span class="badge t-${(r.tipo_op||'OTRO').replace('/','')}">${r.tipo_op||'—'}</span></td>
       <td class="num ${r.tipo_op==='PAGO'?'pos':'neg'}">${fmt(r.valor)}</td>
@@ -1726,7 +1864,8 @@ async function impExt(){
   const dest=document.querySelector('input[name=dest]:checked')?.value||'gastos';
   const uid=U.id;
   const sel=extB.map((r,i)=>{const ck=document.getElementById('ck'+i),cat=document.getElementById('cat'+i);if(!ck?.checked)return null;
-    return{...r,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:mesV,anio_periodo:anioV}}).filter(Boolean);
+    const{_mm,_dd,_saldoDif,...base}=r;
+    return{...base,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:_corte.mes,anio_periodo:_corte.anio}}).filter(Boolean);
   if(!sel.length&&!_difs.length)return toast('Marca al menos un movimiento para importar.');
   const btnImp=document.getElementById('btn-imp-ext');if(btnImp){btnImp.disabled=true;btnImp.textContent='Importando…'}
   // Leer las acciones elegidas antes de tocar la base
@@ -1735,11 +1874,11 @@ async function impExt(){
     const{error:eExt}=await SB.from('extractos').insert(sel);
     if(eExt){if(btnImp){btnImp.disabled=false;btnImp.textContent='Importar →'}return toast(errTxt('importar los movimientos',eExt),5000)}
   }
-  if(dest==='gastos'){const g=sel.filter(r=>r.tipo_op!=='PAGO'&&r.tipo_op!=='ND').map(r=>({usuario_id:uid,anio:anioV,mes:mesV,fecha:r.fecha_tx,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:'Necesidades',tipo:'variable',fuente:'importado',banco_origen:r.banco}));if(g.length)await SB.from('gastos').insert(g)}
-  else if(dest==='ingresos'){const g=sel.filter(r=>r.tipo_op==='PAGO').map(r=>({usuario_id:uid,anio:anioV,mes:mesV,concepto:r.concepto,valor:r.valor,fecha:r.fecha_tx}));if(g.length)await SB.from('ingresos').insert(g)}
+  if(dest==='gastos'){const g=sel.filter(r=>r.tipo_op!=='PAGO'&&r.tipo_op!=='ND').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,fecha:m.fecha,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:'Necesidades',tipo:'variable',fuente:'importado',banco_origen:r.banco}});if(g.length)await SB.from('gastos').insert(g)}
+  else if(dest==='ingresos'){const g=sel.filter(r=>r.tipo_op==='PAGO').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,concepto:r.concepto,valor:r.valor,fecha:m.fecha}});if(g.length)await SB.from('ingresos').insert(g)}
   const res={creada:0,actualizada:0,omitida:0,error:0};
   for(let i=0;i<_difs.length;i++)res[await aplicarDiferido(_difs[i],acciones[i])]++;
-  let msg=`${sel.length} movimientos importados en ${mesN(mesV)} ${anioV}`;
+  let msg=`${sel.length} movimientos importados (estado de ${mesN(_corte.mes)} ${_corte.anio})`;
   if(res.creada)msg+=` · ${res.creada} deuda${res.creada>1?'s':''} creada${res.creada>1?'s':''}`;
   if(res.actualizada)msg+=` · ${res.actualizada} actualizada${res.actualizada>1?'s':''}`;
   if(res.error)msg+=` · ${res.error} diferido${res.error>1?'s':''} no se pudo registrar`;
