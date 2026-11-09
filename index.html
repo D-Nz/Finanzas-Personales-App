@@ -84,7 +84,7 @@ tr.hv:hover{background:var(--cream)}
 .ba{background:var(--amber-bg);color:var(--amber)}.bb{background:var(--blue-bg);color:var(--blue)}
 .bm{background:var(--cream2);color:var(--muted)}
 .t-CONS{background:#e8f5e9;color:#2e7d32}.t-DIF{background:#e3f2fd;color:#1565c0}
-.t-PAGO{background:var(--card)3e0;color:#e65100}.t-ND{background:var(--cream2);color:var(--muted)}
+.t-PAGO{background:#fff3e0;color:#e65100}.t-ND{background:var(--cream2);color:var(--muted)}
 .btn{border:none;border-radius:9px;padding:8px 15px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:.12s}
 .bfo{background:var(--forest);color:#fff}.bfo:hover{background:var(--forest2)}
 .bgo{background:var(--gold);color:var(--forest)}.bgo:hover{background:var(--gold2)}
@@ -174,6 +174,7 @@ body{font-family:var(--f-ui);background:var(--canvas)}
 .hav{color:#13201A}
 .t-CONS{background:var(--green-bg);color:var(--green)}.t-DIF{background:var(--blue-bg);color:var(--blue)}
 .t-PAGO{background:var(--amber-bg);color:var(--amber)}
+.t-DEB{background:var(--red-bg);color:var(--red)}.t-CRE{background:var(--green-bg);color:var(--green)}
 .obl-card:hover{transform:none}
 :root[data-theme="dark"] .ctit,:root[data-theme="dark"] .chart-card-title,:root[data-theme="dark"] .mbox h3,:root[data-theme="dark"] .nb.on,:root[data-theme="dark"] .nb:hover{color:var(--text)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .ctit,:root:not([data-theme="light"]) .chart-card-title,:root:not([data-theme="light"]) .mbox h3,:root:not([data-theme="light"]) .nb.on,:root:not([data-theme="light"]) .nb:hover{color:var(--text)}}
@@ -1624,7 +1625,8 @@ async function rE(){
   <div class="card" style="margin-bottom:18px">
     <div class="ctit">Subir estado de cuenta</div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-      <b>PDF digital:</b> PacifiCard, Diners Club, Discover, Banco Pichincha.<br>
+      <b>Tarjetas (PDF):</b> PacifiCard (también en imagen, con OCR), Diners Club, Discover, Banco Pichincha.<br>
+      <b>Cuentas de ahorro (PDF):</b> Banco Pichincha y Deuna. Los débitos van a gastos y los créditos a ingresos.<br>
       Tipos: <span class="badge t-CONS">CONS</span> <span class="badge t-DIF">DIF</span> <span class="badge t-PAGO">PAGO</span> <span class="badge t-ND">N/D</span><br>
       <b>Excel:</b> Descarga la plantilla, completa y sube. Elige destino al importar.
     </p>
@@ -1650,7 +1652,7 @@ async function reunirImportados(){
   ]);
   const err=ext.error||gas.error||ing.error||obl.error;
   if(err)throw err;
-  const pagos=new Set((ext.data||[]).filter(r=>r.tipo_op==='PAGO').map(r=>r.concepto+'|'+(+r.valor).toFixed(2)));
+  const pagos=new Set((ext.data||[]).filter(r=>r.tipo_op==='PAGO'||r.tipo_op==='CRE').map(r=>r.concepto+'|'+(+r.valor).toFixed(2)));
   return{extractos:ext.data||[],gastos:gas.data||[],
     ingresos:(ing.data||[]).filter(r=>pagos.has(r.concepto+'|'+(+r.valor).toFixed(2))),
     obligaciones:obl.data||[]};
@@ -1700,7 +1702,7 @@ async function borrarImportados(){
   });
 }
 async function carHist(){
-  const{data}=await SB.from('extractos').select('*').eq('usuario_id',U.id).order('created_at',{ascending:false}).limit(80);
+  const{data}=await SB.from('extractos').select('*').eq('usuario_id',U.id).neq('estado','descartado').order('created_at',{ascending:false}).limit(80);
   const el=$('#hist-ext');
   if(!data?.length){el.innerHTML='<div class="empty"><p>Sin extractos importados.</p></div>';return}
   el.innerHTML=`<div class="tw"><table><tr><th>Banco</th><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Categoría</th><th class="num">Valor</th></tr>
@@ -1714,12 +1716,13 @@ async function carHist(){
 }
 async function procExt(e){
   const file=e.target.files[0];if(!file)return;
-  extB=[];_lineasExt=[];_ocr=false;_ocrImgs=new Map();_totalManual=null;_lineaTotal=null;toast('Procesando…',3000);
+  extB=[];_lineasExt=[];_ocr=false;_ocrImgs=new Map();_totalManual=null;_lineaTotal=null;_esCuenta=false;_concCuenta=null;_corteCuenta=null;_gastosRecarga=[];toast('Procesando…',3000);
   const ext=file.name.split('.').pop().toLowerCase();
   if(ext==='pdf') await parsePDF(file);else await parseXLS(file);
   if(extB.length){
     extB.forEach(r=>{if(r.banco!=='Excel'&&r.fecha_tx){const[,mm,dd]=r.fecha_tx.split('-').map(Number);r._mm=mm;r._dd=dd}});
-    _corte=detectarCorte(_lineasExt,extB);ajustarAnios();
+    if(_esCuenta){_corte=_corteCuenta||detectarCorte(_lineasExt,extB);await emparejarRecargas();await marcarDuplicados()}
+    else{_corte=detectarCorte(_lineasExt,extB);ajustarAnios()}
     await cargarDeudasTarjeta();renderPrev();
   }
   else toast('No se encontraron movimientos en el archivo. Revisa que sea un estado de cuenta compatible o usa la plantilla Excel.',6000);
@@ -1759,6 +1762,7 @@ async function parsePDF(file){
   const banco=detBanco(texto);
   if(banco==='PacifiCard') parsPC(allLines);
   else if(banco==='Diners'||banco==='Discover') parsDC(allLines,banco);
+  else if(banco==='Pichincha Ahorros'||banco==='Deuna') parsCuenta(allLines,banco);
   else if(banco==='Pichincha') parsPI(allLines);
   else{toast('Banco no reconocido. Usa la plantilla Excel.',4000);parsGen(allLines,banco)}
 }
@@ -1828,6 +1832,8 @@ function detBanco(t){
   if(t.includes('PACIFICARD')||t.includes('PacifiCard')||t.includes('intermatico'))return 'PacifiCard';
   if(t.includes('DINERS CLUB')||t.includes('dinersclub')||t.includes('Diners Club'))return 'Diners';
   if(t.includes('DISCOVER')||t.includes('discover.ec'))return 'Discover';
+  if(t.includes('deunaapp.com')||/Detalle de movimientos mensuales/i.test(t)&&/Fecha\s+N° Documento/i.test(t))return 'Deuna';
+  if(/FECHA\s+OFIC\.\s+N\.DOC\.\s+DESCRIPCION\s+DEBITO\s+CREDITO\s+SALDO/.test(t))return 'Pichincha Ahorros';
   if(t.includes('BANCO PICHINCHA')||t.includes('pichincha.com')||t.includes('VISA PLATINUM'))return 'Pichincha';
   return 'Desconocido';
 }
@@ -1898,6 +1904,137 @@ function parsPI(lineas){
     }
   }
 }
+// ── Cuentas de ahorro y billeteras: cada débito es un gasto y cada crédito un ingreso, en el mes de su fecha ──
+let _esCuenta=false, _concCuenta=null, _corteCuenta=null;
+const MES_AH={ENE:1,FEB:2,MAR:3,ABR:4,MAY:5,JUN:6,JUL:7,AGO:8,SEP:9,SET:9,OCT:10,NOV:11,DIC:12};
+const numCta=s=>parseFloat(String(s).replace(/[$,\s]/g,''));
+const pad2=n=>String(n).padStart(2,'0');
+// Reglas en orden: la primera que coincide decide categoría, destino y nombre legible.
+// destino: 'gasto' | 'ingreso' | 'auto' (débito = gasto, crédito = ingreso) | 'omitir' (no se registra, con el motivo)
+const REGLAS_CUENTA=[
+  [/^\*\*COM|COMISION|^IVA\b|IVA COBRADO|IMPUESTO ISD/i,'Comisiones','gasto',null,''],
+  [/VISA BP|BPPCA|PAGO TARJETA/i,'Pago','omitir','Pago de tarjeta de crédito','Pago de tarjeta: sus consumos ya se registran al importar el estado de la tarjeta.'],
+  [/RECARGA DE SALDO/i,'Transferencias','omitir','Recarga de saldo Deuna','Recarga de la billetera: es tu propio dinero, no un ingreso.'],
+  [/DB AH PROGRAMADO|AHORRO PROGRAMADO/i,'Ahorro','gasto','Ahorro programado',''],
+  [/RETSINTJ|RETIRO/i,'Efectivo','gasto','Retiro de efectivo',''],
+  [/NETFLIX|SPOTIFY|DISNEY|YOUTUBE|CRUNCHYROLL|GOOGLE|AMAZON|APPLE\.COM/i,'Suscripciones','gasto',null,''],
+  [/MEER|EPMS|EPMAPS|EEQ|MOVIST|CLARO|TUENTI|\bCNT\b|NETLIFE/i,'Servicios','gasto',null,''],
+  [/MTRQ|METRO|UBER|CABIFY|DIDI|GASOLIN|PETROCOM|PRIMAX/i,'Transporte','gasto',null,''],
+  [/SANA SANA|FYBECA|FARMACIA|CRUZ AZUL|MEDIC|CLINICA/i,'Salud','gasto',null,''],
+  [/SUPERMAXI|MEGAMAXI|\bAKI\b|\bTIA\b|SANTA MARIA|CORAL|COMISARIATO/i,'Alimentación','gasto',null,''],
+  [/PAGO A COMERCIOS/i,'Sin categoría','gasto','Pago a comercio',''],
+  [/TRANSFERENCIA|\bTRF\b/i,'Transferencias','auto',null,''],
+  [/REG EN CTA/i,'Otro','ingreso','Acreditación en cuenta',''],
+];
+function nombreMovCuenta(desc,esDeb){
+  if(/TRANSFERENCIA ENTRE CUENTAS/i.test(desc))return esDeb?'Transferencia enviada (Deuna)':'Transferencia recibida (Deuna)';
+  if(/TRANSFERENCIA INTERBANCARIA/i.test(desc))return esDeb?'Transferencia a otro banco':'Transferencia de otro banco';
+  if(/TRANSFERENCIA/i.test(desc))return esDeb?'Transferencia enviada':'Transferencia recibida';
+  let m=/^\*\*COM(?:ISION)?\s+(.+?)(?:\s+TRF\b.*)?$/i.exec(desc);if(m)return 'Comisión '+m[1].replace(/\s+\d{6,}.*/,'').trim();
+  if(/^IVA COBRADO/i.test(desc))return 'IVA de comisión';
+  m=/^IVA\s+(\S+)\s+TRF/i.exec(desc);if(m)return 'IVA de comisión '+m[1];
+  m=/^IMPUESTO ISD\s+(\S+)/i.exec(desc);if(m)return 'Impuesto ISD '+m[1].replace(/\.C(OM)?$/i,'');
+  return desc.replace(/^CONSUMO TD\s*(INT\s*)?/i,'').replace(/^PAGO\s+(\w+)\s+TRF\b.*$/i,'Pago $1').replace(/\s+\d{6,}\S*/g,'').replace(/\s+(\d{1,3}|[A-Z]{2})$/,'').trim()||desc;
+}
+function agregarCuenta(banco,fecha,desc,deb,cre,linea){
+  const esDeb=deb>0, v=r2(esDeb?deb:cre);if(!(v>0))return;
+  const regla=REGLAS_CUENTA.find(([re])=>re.test(desc));
+  let cat=regla?regla[1]:acat(desc), dest=regla?regla[2]:'auto';
+  if(dest==='auto'||(dest==='gasto'&&!esDeb)||(dest==='ingreso'&&esDeb))dest=esDeb?'gasto':'ingreso';
+  if(regla&&regla[2]==='omitir')dest='omitir';
+  if(cat==='Pago'&&dest!=='omitir')cat='Sin categoría';
+  extB.push({banco,fecha_tx:fecha,concepto:(regla&&regla[3])||nombreMovCuenta(desc,esDeb),tipo_op:esDeb?'DEB':'CRE',valor:v,
+    categoria:cat,_dest:dest,_motivo:dest==='omitir'?regla[4]:'',_detalle:desc,_linea:linea});
+}
+function parsCuenta(lineas,banco){
+  _esCuenta=true;
+  const todo=lineas.join('\n');
+  if(banco==='Pichincha Ahorros'){
+    const fc=/FECHA ESTE CORTE[^\d]*(\d{2})-(\d{2})-(\d{4})/.exec(todo);
+    const cy=fc?+fc[3]:ANIO, cm=fc?+fc[2]:MES;
+    if(fc)_corteCuenta={anio:cy,mes:cm,dia:+fc[1],origen:'pdf'};
+    const re=/^(\d{2})-([a-z]{3})\.?\s+(\d+)\s+(\d+)\s+(.+?)\s+([\d,]*\d\.\d{2})\s+([\d,]*\d\.\d{2})\s+(-?[\d,]*\d\.\d{2})$/i;
+    for(const l of lineas){
+      const m=re.exec(l.trim());if(!m)continue;
+      const mo=MES_AH[m[2].toUpperCase()];if(!mo)continue;
+      const y=mo>cm?cy-1:cy; // el estado cruza de año (dic → ene)
+      agregarCuenta(banco,`${y}-${pad2(mo)}-${m[1]}`,m[5].replace(/\s{2,}/g,' ').trim(),numCta(m[6]),numCta(m[7]),l);
+    }
+    const d=/CHEQUES\s*\/\s*D[EÉ]BITOS\s*\((\d+)\)\s*([\d,.]+)/.exec(todo), c=/DEP[OÓ]SITO\s*\/\s*CR[EÉ]DITOS\s*\((\d+)\)\s*([\d,.]+)/.exec(todo);
+    _concCuenta={deb:d?{n:+d[1],v:numCta(d[2])}:null,cre:c?{n:+c[1],v:numCta(c[2])}:null};
+  }else{
+    const fc=/(?:Fecha este corte|hasta el)\s*(\d{2})\/(\d{2})\/(\d{4})/i.exec(todo);
+    if(fc)_corteCuenta={anio:+fc[3],mes:+fc[2],dia:+fc[1],origen:'pdf'};
+    const n='(-?\\d[\\d,]*(?:\\.\\d+)?)';
+    const re=new RegExp(`^(\\d{2})\\/(\\d{2})\\/(\\d{4})\\s+(\\d+)\\s+(.+?)\\s+${n}\\s+${n}\\s+${n}$`);
+    for(const l of lineas){
+      const m=re.exec(l.trim());if(!m)continue;
+      agregarCuenta(banco,`${m[3]}-${m[2]}-${m[1]}`,m[5].replace(/\s{2,}/g,' ').trim(),Math.abs(numCta(m[6])),numCta(m[7]),l);
+    }
+    const d=/D[ée]bitos\s*\((\d+)\)\s*\$?-?([\d,.]+)/i.exec(todo), c=/Dep[óo]sito\s*\/\s*Cr[ée]ditos\s*\((\d+)\)\s*\$?([\d,.]+)/i.exec(todo);
+    _concCuenta={deb:d?{n:+d[1],v:numCta(d[2])}:null,cre:c?{n:+c[1],v:numCta(c[2])}:null};
+  }
+}
+// Si ya hay un gasto (o ingreso) con la misma fecha y valor —otro estado de cuenta o el mismo importado dos veces—, se desmarca
+async function marcarDuplicados(){
+  const f=extB.map(r=>r.fecha_tx).filter(Boolean).sort();if(!f.length)return;
+  const[g,i]=await Promise.all([
+    SB.from('gastos').select('id,fecha,valor').eq('usuario_id',U.id).gte('fecha',f[0]).lte('fecha',f[f.length-1]),
+    SB.from('ingresos').select('fecha,valor').eq('usuario_id',U.id).gte('fecha',f[0]).lte('fecha',f[f.length-1])]);
+  const mapa=d=>{const M=new Map();(d||[]).forEach(x=>{const k=String(x.fecha).slice(0,10)+'|'+(+x.valor).toFixed(2);M.set(k,(M.get(k)||0)+1)});return M};
+  const quitar=new Set(_gastosRecarga.map(x=>x.id));
+  const G=mapa((g.data||[]).filter(x=>!quitar.has(x.id))),I=mapa(i.data);
+  extB.forEach(r=>{
+    const M=r.tipo_op==='DEB'?G:I, k=r.fecha_tx+'|'+r.valor.toFixed(2);
+    if(r._dest==='omitir'||!(M.get(k)>0))return;
+    M.set(k,M.get(k)-1);r._dest='omitir';
+    r._motivo=`Posible duplicado: ya tienes un ${r.tipo_op==='DEB'?'gasto':'ingreso'} de ${fmt(r.valor)} con esta fecha. Márcalo si es otro movimiento.`;
+  });
+}
+// ── Recargas de Deuna desde la cuenta Pichincha ──
+// La recarga es tu propio dinero que pasa de Pichincha a Deuna: en Pichincha sale como transferencia y en Deuna
+// entra como "Recarga de saldo". El gasto real es el pago que haces después con Deuna, así que el débito de
+// Pichincha no debe contar como gasto. Se emparejan por valor exacto, el mismo día o hasta 3 días después
+// (Pichincha registra los fines de semana el lunes), una recarga con un solo débito.
+let _gastosRecarga=[];
+const diasEntre=(a,b)=>Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/864e5);
+const masDias=(s,n)=>{const x=new Date(s+'T12:00:00');x.setDate(x.getDate()+n);return `${x.getFullYear()}-${pad2(x.getMonth()+1)}-${pad2(x.getDate())}`};
+function emparejar(recargas,debitos){
+  const usados=new Set(), pares=[];
+  recargas.slice().sort((a,b)=>a.fecha<b.fecha?-1:1).forEach(r=>{
+    let mejor=-1,dm=99;
+    debitos.forEach((d,i)=>{if(usados.has(i)||Math.abs(d.valor-r.valor)>0.004)return;const k=diasEntre(r.fecha,d.fecha);if(k>=0&&k<=3&&k<dm){dm=k;mejor=i}});
+    if(mejor>=0){usados.add(mejor);pares.push([r,debitos[mejor]])}
+  });
+  return pares;
+}
+async function emparejarRecargas(){
+  _gastosRecarga=[];
+  const f=extB.map(r=>r.fecha_tx).filter(Boolean).sort();if(!f.length)return;
+  const banco=extB[0].banco;
+  if(banco==='Deuna'){
+    // Pichincha ya importado: sus transferencias que son recargas están como gasto y hay que quitarlas
+    const rec=extB.filter(r=>r.tipo_op==='CRE'&&/RECARGA DE SALDO/i.test(r._detalle||'')).map(r=>({fecha:r.fecha_tx,valor:r.valor,r}));
+    if(!rec.length)return;
+    const{data,error}=await SB.from('gastos').select('id,fecha,valor,concepto').eq('usuario_id',U.id).eq('banco_origen','Pichincha Ahorros')
+      .gte('fecha',f[0]).lte('fecha',masDias(f[f.length-1],3));
+    if(error)return console.error(error);
+    const deb=(data||[]).filter(g=>/^Transferencia/i.test(g.concepto||'')).map(g=>({fecha:String(g.fecha).slice(0,10),valor:+g.valor,g}));
+    emparejar(rec,deb).forEach(([a,b])=>{_gastosRecarga.push(b.g);
+      a.r._motivo=`Recarga desde Pichincha (${ff(b.fecha)}): ese débito ya estaba como gasto y se quita al importar, para que solo cuente el pago hecho con Deuna.`});
+  }else if(banco==='Pichincha Ahorros'){
+    // Deuna ya importado: sus recargas quedaron en el historial; los débitos que les corresponden no son gasto
+    const deb=extB.filter(r=>r.tipo_op==='DEB'&&r._dest!=='omitir'&&/TRANSFERENCIA/i.test(r._detalle||'')).map(r=>({fecha:r.fecha_tx,valor:r.valor,r}));
+    if(!deb.length)return;
+    const{data,error}=await SB.from('extractos').select('fecha_tx,valor').eq('usuario_id',U.id).eq('banco','Deuna').eq('concepto','Recarga de saldo Deuna')
+      .gte('fecha_tx',masDias(f[0],-3)).lte('fecha_tx',f[f.length-1]);
+    if(error)return console.error(error);
+    const rec=(data||[]).map(x=>({fecha:String(x.fecha_tx).slice(0,10),valor:+x.valor}));
+    emparejar(rec,deb).forEach(([a,b])=>{b.r._dest='omitir';b.r._recarga=true;
+      b.r._motivo=`Recarga a Deuna del ${ff(a.fecha)}: el gasto real ya está registrado desde Deuna.`});
+  }
+}
+const natImp=cat=>cat==='Ahorro'?'Ahorros':(typeof NAT_CAT!=='undefined'&&NAT_CAT[cat])||'Necesidades';
 function parsGen(lineas,banco){
   const re=/(\d{1,3}(?:[,\.]\d{3})*[,\.]\d{2})/g;
   for(const l of lineas){
@@ -1965,7 +2102,7 @@ function detectarCorte(lineas,filas){
 // El PDF trae día/mes sin año: se usa el año del corte, o el anterior si la fecha quedaría después del corte.
 // En un diferido "(n/N)" la compra es de antes de su primera cuota (n-1 meses antes del corte).
 function ajustarAnios(){
-  if(!_corte)return;
+  if(!_corte||_esCuenta)return; // en cuentas cada fecha ya trae su año
   extB.forEach(r=>{
     if(!r._mm)return;
     const q=r.tipo_op==='DIF'?cuotaDif(r.concepto):null;
@@ -2093,7 +2230,32 @@ function totalBanco(){
   }
   return null;
 }
+function htmlCuadreCuenta(){
+  const sum=t=>r2(extB.filter(r=>r.tipo_op===t).reduce((s,r)=>s+r.valor,0)), cnt=t=>extB.filter(r=>r.tipo_op===t).length;
+  const sD=sum('DEB'),sC=sum('CRE'),c=_concCuenta||{};
+  const ok=(!c.deb||(cnt('DEB')===c.deb.n&&Math.abs(sD-c.deb.v)<0.01))&&(!c.cre||(cnt('CRE')===c.cre.n&&Math.abs(sC-c.cre.v)<0.01));
+  const marc=extB.map((r,i)=>({r,on:document.getElementById('ck'+i)?document.getElementById('ck'+i).checked:r._dest!=='omitir'}));
+  const g=marc.filter(x=>x.on&&x.r.tipo_op==='DEB'), n=marc.filter(x=>x.on&&x.r.tipo_op==='CRE'), om=marc.filter(x=>!x.on);
+  const tot=a=>fmt(r2(a.reduce((s,x)=>s+x.r.valor,0)));
+  return `<div style="background:${ok?'var(--green-bg)':'var(--red-bg)'};color:${ok?'var(--green)':'var(--red)'};border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+    <b>${ok?'Cuadra con el banco ✓':'No cuadra con el banco'}:</b> leí ${cnt('DEB')} débitos por ${fmt(sD)} y ${cnt('CRE')} créditos por ${fmt(sC)}${c.deb?` (el estado dice ${c.deb.n} por ${fmt(c.deb.v)} y ${c.cre?c.cre.n+' por '+fmt(c.cre.v):'—'})`:''}.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px">
+    <span class="badge t-DEB">${g.length} gastos · ${tot(g)}</span><span class="badge t-CRE">${n.length} ingresos · ${tot(n)}</span><span class="badge bm">${om.length} sin registrar · ${tot(om)}</span></div>
+  ${htmlRecargas()}`;
+}
+function htmlRecargas(){
+  const pich=extB.filter(r=>r._recarga);
+  if(pich.length)return `<div style="background:var(--blue-bg);color:var(--blue);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+    <b>${pich.length} débito${pich.length>1?'s son recargas':' es una recarga'} a Deuna</b> (${fmt(r2(pich.reduce((s,r)=>s+r.valor,0)))}). Quedan sin registrar porque el gasto real ya entró desde Deuna.</div>`;
+  if(!_gastosRecarga.length)return '';
+  const qr=document.getElementById('quitar-recargas'), on=qr?qr.checked:true;
+  return `<div style="background:var(--blue-bg);color:var(--blue);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+    <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="quitar-recargas" ${on?'checked':''} style="width:auto;margin-top:3px">
+    <span><b>${_gastosRecarga.length} recarga${_gastosRecarga.length>1?'s vienen':' viene'} de tu cuenta Pichincha</b> (${fmt(r2(_gastosRecarga.reduce((s,g)=>s+(+g.valor),0)))}).
+    Esos débitos ya están en tus gastos como transferencias; al importar se quitan para que solo cuenten los pagos hechos con Deuna.</span></label></div>`;
+}
 function htmlCuadre(){
+  if(_esCuenta)return htmlCuadreCuenta();
   const tb=totalBanco();if(tb==null)return '';
   const suma=r2(extB.filter((r,i)=>r.tipo_op!=='PAGO'&&document.getElementById('ck'+i)?.checked!==false).reduce((s,r)=>s+r.valor,0));
   const dif=r2(suma-tb);
@@ -2128,7 +2290,7 @@ function verRecorte(src){
   <div class="hint">Desliza de lado si la línea no entra completa.</div>`);
 }
 function renderPrev(){
-  const cats=['Sin categoría','Hogar','Alimentación','Transporte','Salud','Educación','Entretenimiento','Suscripciones','Vehículo','Deportes','Servicios','Pago','Otro'];
+  const cats=['Sin categoría','Hogar','Alimentación','Transporte','Salud','Educación','Entretenimiento','Suscripciones','Vehículo','Deportes','Servicios','Comisiones','Efectivo','Transferencias','Ahorro','Pago','Otro'];
   const el=$('#prev-ext');el.style.display='block';
   el.innerHTML=`<div class="card">
     <div class="ctit">${extB.length} movimientos — <span class="badge bm">${[...new Set(extB.map(r=>r.banco))].join(', ')}</span></div>
@@ -2136,13 +2298,19 @@ function renderPrev(){
       <b>Este PDF es una imagen y se leyó con OCR.</b> El OCR puede confundir dígitos (por ejemplo 9 y 5, 3 y 9).
       Compara cada monto con el PDF y corrígelo en su casilla antes de importar.</div>`:''}
     <div id="cuadre-ext"></div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--cream);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:13px">
+    ${_esCuenta?(()=>{const f=extB.map(r=>r.fecha_tx).sort();return `<div style="background:var(--cream);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:13px">
+      <b>${escH(extB[0].banco)}</b> · movimientos del ${ff(f[0])} al ${ff(f[f.length-1])}. Cada uno va al mes de su fecha.</div>`})():''}
+    <div style="display:${_esCuenta?'none':'flex'};align-items:center;gap:10px;flex-wrap:wrap;background:var(--cream);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:13px">
       <span><b>Estado de cuenta de ${mesN(_corte.mes)} ${_corte.anio}</b>${_corte.dia?` · corte al ${_corte.dia}`:''}</span>
       <span style="color:var(--muted)">${_corte.origen==='pdf'?'Fecha leída del PDF.':_corte.origen==='manual'?'Mes elegido por ti.':'No encontré la fecha de corte; la estimé con el último movimiento. Cámbiala si no es correcta.'}</span>
       <label style="margin-left:auto;display:flex;align-items:center;gap:6px">Mes del corte
         <input type="month" id="ext-mes" value="${_corte.anio}-${String(_corte.mes).padStart(2,'0')}" onchange="cambiarCorte(this.value)" style="border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-family:inherit"></label>
     </div>
-    <div style="background:var(--amber-bg);border-radius:9px;padding:12px;font-size:13px;color:var(--amber);margin-bottom:12px">
+    ${_esCuenta?`<div style="background:var(--cream);border-radius:9px;padding:12px;font-size:13px;margin-bottom:12px">
+      <b>Cuenta de ahorros:</b> cada débito se registra como <b>gasto</b> y cada crédito como <b>ingreso</b>, en el mes de su fecha.
+      Quedan sin marcar los pagos de tarjeta, las recargas de Deuna y los posibles duplicados; puedes cambiar cualquier casilla.
+      Si un crédito no es un ingreso (por ejemplo, alguien te devuelve un préstamo), desmárcalo.</div>`:''}
+    <div style="background:var(--amber-bg);border-radius:9px;padding:12px;font-size:13px;color:var(--amber);margin-bottom:12px;${_esCuenta?'display:none':''}">
       <b>¿Dónde importar?</b>
       <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
         <label style="cursor:pointer;display:flex;align-items:center;gap:5px"><input type="radio" name="dest" value="gastos" checked style="width:auto"> Gastos del mes</label>
@@ -2158,11 +2326,12 @@ function renderPrev(){
     <div style="max-height:620px;overflow-y:auto">
     <table><tr><th style="width:32px"></th><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="num">Valor</th><th>Categoría</th></tr>
     ${extB.map((r,i)=>`<tr>
-      <td><input type="checkbox" id="ck${i}" checked></td>
+      <td><input type="checkbox" id="ck${i}" ${r._dest==='omitir'?'':'checked'} aria-label="Importar ${r.concepto.replace(/"/g,'')}"></td>
       <td style="font-size:12px">${r.fecha_tx?ff(r.fecha_tx):'—'}<div style="font-size:10px;color:var(--muted)">va a ${(m=>mesN(m.mes)+' '+m.anio)(mesDeFila(r))}</div></td>
-      <td><div style="font-size:13px;font-weight:600">${r.concepto.slice(0,48)}</div><div style="font-size:10px;color:var(--muted)">${r.banco}</div></td>
-      <td><span class="badge t-${(r.tipo_op||'OTRO').replace('/','')}">${r.tipo_op||'—'}</span></td>
-      <td class="num ${r.tipo_op==='PAGO'?'pos':'neg'}">${_ocr
+      <td><div style="font-size:13px;font-weight:600">${r.concepto.slice(0,48)}</div><div style="font-size:10px;color:var(--muted)">${r.banco}${r._detalle&&r._detalle!==r.concepto?' · '+r._detalle.slice(0,60):''}</div>
+        ${r._motivo?`<div style="font-size:11px;color:var(--amber);margin-top:2px">${r._motivo}</div>`:''}</td>
+      <td><span class="badge t-${(r.tipo_op||'OTRO').replace('/','')}">${r.tipo_op==='DEB'?'Débito':r.tipo_op==='CRE'?'Crédito':r.tipo_op||'—'}</span></td>
+      <td class="num ${r.tipo_op==='PAGO'||r.tipo_op==='CRE'?'pos':'neg'}">${_ocr
         ?`<input id="val${i}" value="${r.valor.toFixed(2)}" inputmode="decimal" onchange="editarMonto(${i},this.value)" aria-label="Monto de ${r.concepto.replace(/"/g,'')}" style="width:90px;text-align:right;font:inherit;border:1px solid var(--amber);border-radius:6px;padding:3px 6px;background:var(--amber-bg)">`
         :fmt(r.valor)}</td>
       <td><select id="cat${i}" style="font-size:12px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;background:var(--cream);width:125px">
@@ -2179,21 +2348,35 @@ async function impExt(){
   const dest=document.querySelector('input[name=dest]:checked')?.value||'gastos';
   const uid=U.id;
   const sel=extB.map((r,i)=>{const ck=document.getElementById('ck'+i),cat=document.getElementById('cat'+i);if(!ck?.checked)return null;
-    const{_mm,_dd,_saldoDif,_linea,...base}=r;
+    const base=Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_')));
     return{...base,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:_corte.mes,anio_periodo:_corte.anio}}).filter(Boolean);
   if(!sel.length&&!_difs.length)return toast('Marca al menos un movimiento para importar.');
   const btnImp=document.getElementById('btn-imp-ext');if(btnImp){btnImp.disabled=true;btnImp.textContent='Importando…'}
   // Leer las acciones elegidas antes de tocar la base
   const acciones=_difs.map((d,i)=>document.getElementById('dif-acc-'+i)?.value||'omitir');
-  if(sel.length){
-    const{error:eExt}=await SB.from('extractos').insert(sel);
+  const descart=_esCuenta?extB.map((r,i)=>{if(document.getElementById('ck'+i)?.checked)return null;
+    const base=Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_')));
+    return{...base,usuario_id:uid,estado:'descartado',mes_periodo:_corte.mes,anio_periodo:_corte.anio}}).filter(Boolean):[];
+  if(sel.length||descart.length){
+    const{error:eExt}=await SB.from('extractos').insert([...sel,...descart]);
     if(eExt){if(btnImp){btnImp.disabled=false;btnImp.textContent='Importar →'}return toast(errTxt('importar los movimientos',eExt),5000)}
   }
-  if(dest==='gastos'){const g=sel.filter(r=>r.tipo_op!=='PAGO'&&r.tipo_op!=='ND').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,fecha:m.fecha,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:'Necesidades',tipo:'variable',fuente:'importado',banco_origen:r.banco}});if(g.length)await SB.from('gastos').insert(g)}
+  let nG=0,nI=0,nQ=0;
+  if(_esCuenta){
+    const g=sel.filter(r=>r.tipo_op==='DEB').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,fecha:m.fecha,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:natImp(r.categoria),tipo:'variable',fuente:'importado',banco_origen:r.banco}});
+    const ing=sel.filter(r=>r.tipo_op==='CRE').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,concepto:r.concepto,valor:r.valor,fecha:m.fecha}});
+    try{if(g.length)await insertarEnLotes('gastos',g);nG=g.length;if(ing.length)await insertarEnLotes('ingresos',ing);nI=ing.length}
+    catch(e){if(btnImp){btnImp.disabled=false;btnImp.textContent='Importar →'}return toast(errTxt('registrar los gastos e ingresos',e),6000)}
+    if(_gastosRecarga.length&&document.getElementById('quitar-recargas')?.checked!==false){
+      try{await borrarEnLotes('gastos',_gastosRecarga.map(x=>x.id));nQ=_gastosRecarga.length}
+      catch(e){toast(errTxt('quitar de tus gastos los débitos que eran recargas',e),6000)}
+    }
+  }
+  else if(dest==='gastos'){const g=sel.filter(r=>r.tipo_op!=='PAGO'&&r.tipo_op!=='ND').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,fecha:m.fecha,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:natImp(r.categoria),tipo:'variable',fuente:'importado',banco_origen:r.banco}});if(g.length)await SB.from('gastos').insert(g)}
   else if(dest==='ingresos'){const g=sel.filter(r=>r.tipo_op==='PAGO').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,concepto:r.concepto,valor:r.valor,fecha:m.fecha}});if(g.length)await SB.from('ingresos').insert(g)}
   const res={creada:0,actualizada:0,omitida:0,error:0};
   for(let i=0;i<_difs.length;i++)res[await aplicarDiferido(_difs[i],acciones[i])]++;
-  let msg=`${sel.length} movimientos importados (estado de ${mesN(_corte.mes)} ${_corte.anio})`;
+  let msg=_esCuenta?`${nG} gastos y ${nI} ingresos registrados (${extB[0]?.banco||'cuenta'})${nQ?` · ${nQ} recarga${nQ>1?'s':''} de Pichincha quitada${nQ>1?'s':''} de gastos`:''}`:`${sel.length} movimientos importados (estado de ${mesN(_corte.mes)} ${_corte.anio})`;
   if(res.creada)msg+=` · ${res.creada} deuda${res.creada>1?'s':''} creada${res.creada>1?'s':''}`;
   if(res.actualizada)msg+=` · ${res.actualizada} actualizada${res.actualizada>1?'s':''}`;
   if(res.error)msg+=` · ${res.error} diferido${res.error>1?'s':''} no se pudo registrar`;
