@@ -392,8 +392,12 @@ const saldoObl=o=>Math.max(r2(+o.monto_total-pagadoObl(o)),0);
 const avanceObl=o=>+o.monto_total>0?Math.min(pagadoObl(o)/+o.monto_total*100,100):0;
 // Dirección: "me deben" = la creé yo y no es deuda propia.
 // "le debo" = la creé yo como deuda propia, o alguien más me registró como deudor.
-const esMeDeben=(o,uid)=>o.titular_id===uid&&!o.es_deuda_propia;
-const esLeDebo=(o,uid)=>(o.titular_id===uid&&o.es_deuda_propia===true)||(o.deudor_id===uid&&o.titular_id!==uid);
+// Deudas de otra persona que tú administras (por ejemplo, las tarjetas de tu papá): llevan "[tercero:Nombre]" en las notas.
+// No son tuyas: no cuentan en tus totales, en Personas ni en el Plan de pago; se ven en Deudas → Administradas.
+const terceroDe=o=>((/\[tercero:([^\]]+)\]/.exec(o?.notas||'')||[])[1]||'').trim();
+const esTercero=o=>!!terceroDe(o);
+const esMeDeben=(o,uid)=>o.titular_id===uid&&!o.es_deuda_propia&&!esTercero(o);
+const esLeDebo=(o,uid)=>((o.titular_id===uid&&o.es_deuda_propia===true)||(o.deudor_id===uid&&o.titular_id!==uid))&&!esTercero(o);
 const SEGS=['Todos','Créditos Bancarios','Avances / Tarjetas','Préstamos Personales','Gastos Compartidos'];
 const SEGCOL={'Créditos Bancarios':'#2563eb','Avances / Tarjetas':'#b87c1a','Préstamos Personales':'#2e7d52','Gastos Compartidos':'#5a8a6f'};
 
@@ -619,7 +623,7 @@ async function rR(){
   </div>
   ${(obls||[]).length?`<div class="card"><div class="ctit">Obligaciones activas <button class="btn bfo sm" onclick="goNav(document.querySelector('[data-v=obligaciones]'));rO()">Ver todas</button></div>
   <div class="tw"><table><tr><th>Concepto</th><th>Segmento</th><th>Persona</th><th>Saldo</th></tr>
-  ${(obls||[]).slice(0,6).map(o=>{
+  ${(obls||[]).filter(o=>!esTercero(o)).slice(0,6).map(o=>{
     const s=saldoObl(o), cobro=esMeDeben(o,uid);
     return `<tr class="hv" data-oblid="${o.id}">
       <td><b>${o.nombre}</b></td>
@@ -690,7 +694,7 @@ async function rO(){
     .order('created_at',{ascending:false});
 
   const act=(obls||[]).filter(o=>o.estado==='activa');
-  const cerr=(obls||[]).filter(o=>o.estado!=='activa');
+  const cerr=(obls||[]).filter(o=>o.estado!=='activa'&&!esTercero(o));
   const filtAct=segV==='Todos'?act:act.filter(o=>(o.segmento||'')===segV);
 
   const meDeben=filtAct.filter(o=>esMeDeben(o,uid));
@@ -781,6 +785,7 @@ async function rO(){
       ${!leDebo.length?'<div class="empty"><p>Sin deudas activas.</p></div>':leDebo.map(o=>oblCard(o,false)).join('')}
     </div>
   </div>`}
+  ${htmlAdministradas(act.filter(esTercero))}
   ${cerr.length?`<details style="margin-top:18px"><summary style="cursor:pointer;font-size:13px;color:var(--muted);font-weight:600;padding:8px 0">Ver ${cerr.length} cerrada(s)</summary>
   <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
     ${cerr.map(o=>`<div style="background:var(--cream);border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center">
@@ -790,6 +795,22 @@ async function rO(){
   </div></details>`:''}`;
 }
 
+// Deudas de terceros agrupadas por dueño (no suman en tus totales)
+function htmlAdministradas(obls){
+  if(!obls.length)return '';
+  const g={};obls.forEach(o=>{const t=terceroDe(o);(g[t]=g[t]||[]).push(o)});
+  return `<div style="margin-top:22px">
+    <div style="font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px">Administradas (no son tuyas)</div>
+    <div class="hint" style="margin:0 0 10px">Deudas de otras personas que tú pagas. No suman en tus totales ni en tu plan de pago.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
+    ${Object.entries(g).map(([t,os])=>`<div class="card" style="border-left:4px solid var(--blue)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+        <div><div style="font-weight:700">${escH(t)}</div><div class="hint" style="margin:0">${os.length} deuda${os.length>1?'s':''}</div></div>
+        <div style="text-align:right"><div class="num" style="font-size:18px;font-weight:600;color:var(--blue)">${fmt(r2(os.reduce((s,o)=>s+saldoObl(o),0)))}</div><div class="hint" style="margin:0">debe en total</div></div></div>
+      ${os.map(o=>`<div data-oblid="${o.id}" class="hv" style="display:flex;justify-content:space-between;gap:8px;padding:7px 10px;background:var(--cream);border-radius:8px;margin-bottom:5px;font-size:13px">
+        <span style="min-width:0">${escH(o.nombre)}<div class="hint" style="margin:0">${escH(o.deudor_nombre||'')}</div></span><b class="num">${fmt(saldoObl(o))}</b></div>`).join('')}
+    </div>`).join('')}</div></div>`;
+}
 async function vObl(id){
   openM(ld());
   const{data:o}=await SB.from('obligaciones').select('*,cuotas(*)').eq('id',id).single();
@@ -808,11 +829,11 @@ async function vObl(id){
   let h='';
   h+=`<h3><span>${_volverA?'<button class="btn bgh xs" style="margin-right:8px" onclick="volver()">← Volver</button>':''}${o.nombre}</span> <span class="mx" data-action="close-modal">×</span></h3>`;
   h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">`;
-  h+=`<span class="badge ${cobro?'bg':'br'}">${cobro?'Me deben':'Le debo'}</span>`;
+  h+=`<span class="badge ${esTercero(o)?'bb':cobro?'bg':'br'}">${esTercero(o)?'Administrada · de '+escH(terceroDe(o)):cobro?'Me deben':'Le debo'}</span>`;
   h+=`<span class="badge bm" style="border-left:3px solid ${segCol}">${o.segmento||'—'}</span>`;
   h+=`<span class="badge bm">${o.estado}</span>`;
   h+=`</div>`;
-  if(o.deudor_nombre) h+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">${cobro?'Te debe':'Le debes a'}: <b>${o.deudor_nombre}</b></div>`;
+  if(o.deudor_nombre) h+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">${esTercero(o)?escH(terceroDe(o))+' le debe a':cobro?'Te debe':'Le debes a'}: <b>${o.deudor_nombre}</b></div>`;
   h+=`<div class="g3" style="margin-bottom:12px">`;
   h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">TOTAL</div><div style="font-weight:800;font-size:16px">${fmt(+o.monto_total)}</div></div>`;
   h+=`<div style="background:var(--cream);border-radius:10px;padding:12px"><div style="font-size:10px;font-weight:700;color:var(--muted)">PAGADO</div><div style="font-weight:800;font-size:16px;color:var(--green)">${fmt(pagTot)}</div></div>`;
@@ -980,6 +1001,8 @@ function mNuevaObl(){
     <div class="ff"><label>N° cuotas (0 = libre)</label><input id="oq" type="number" value="0"></div>
     <div class="ff"><label>Valor cuota ($)</label><input id="ovc" type="number" step="0.01"></div>
   </div>
+  <div class="ff"><label for="oter">¿Es de otra persona que tú administras?</label><input id="oter" placeholder="Déjalo vacío si es tuya. Ej: Papá">
+    <div class="hint">Solo para "Le debo". Queda en Deudas → Administradas y no suma en tus totales.</div></div>
   <div class="ff"><label>Notas</label><textarea id="ono" rows="2" placeholder="Acuerdos, condiciones…"></textarea></div>
   <button class="btn bfo" style="width:100%" id="btn-sav-nueva-obl">Crear obligación</button>`);
   document.getElementById('btn-sav-nueva-obl').onclick=savNuevaObl;
@@ -1023,7 +1046,7 @@ async function savNuevaObl(){
     fecha_inicio:f,
     num_cuotas:+document.getElementById('oq').value||null,
     valor_cuota:+document.getElementById('ovc').value||null,
-    notas:notas+(esDeuPropia?'\n[Le debo a: '+nombreP+']':''),
+    notas:notas+(esDeuPropia?'\n[Le debo a: '+nombreP+']':'')+(esDeuPropia&&document.getElementById('oter')?.value.trim()?'\n[tercero:'+document.getElementById('oter').value.trim().replace(/[\[\]|]/g,'')+']':''),
     estado:'activa',
     es_deuda_propia:esDeuPropia
   }).select().single();
@@ -1714,15 +1737,57 @@ async function carHist(){
     <td class="num ${r.tipo_op==='PAGO'?'pos':'neg'}">${fmt(r.valor)}</td></tr>`).join('')}
   </table></div>`;
 }
+// ── Archivos y líneas ya importados ──
+// Cada importación guarda la huella del archivo (SHA-256) y su nombre. El mismo contenido no se puede importar
+// otra vez; con el mismo nombre (pero otro contenido) se avisa. Además, cada línea que ya está en el historial
+// (mismo banco, fecha, valor y concepto) queda bloqueada aunque venga en otro archivo.
+let _archivo=null, _archivoPrevio=null;
+async function huellaArchivo(file){
+  try{const b=await crypto.subtle.digest('SHA-256',await file.arrayBuffer());return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('').slice(0,40)}
+  catch(e){console.error(e);return ''}
+}
+async function revisarArchivo(file){
+  _archivo={nombre:file.name,hash:await huellaArchivo(file)};_archivoPrevio=null;
+  const{data}=await SB.from('extractos').select('concepto,tarjeta_ref,created_at').eq('usuario_id',U.id).eq('tipo_op','ARCHIVO');
+  const igual=(data||[]).find(x=>_archivo.hash&&x.tarjeta_ref===_archivo.hash);
+  const nombre=(data||[]).find(x=>x.concepto===_archivo.nombre);
+  if(igual)_archivoPrevio={mismo:'contenido',fecha:String(igual.created_at).slice(0,10),nombre:igual.concepto};
+  else if(nombre)_archivoPrevio={mismo:'nombre',fecha:String(nombre.created_at).slice(0,10),nombre:nombre.concepto};
+}
+async function marcarYaImportados(){
+  const f=extB.map(r=>r.fecha_tx).filter(Boolean).sort();if(!f.length)return;
+  const bancos=[...new Set(extB.map(r=>r.banco))];
+  const{data,error}=await SB.from('extractos').select('banco,fecha_tx,valor,concepto,tipo_op').eq('usuario_id',U.id).in('banco',bancos)
+    .gte('fecha_tx',f[0]).lte('fecha_tx',f[f.length-1]);
+  if(error)return console.error(error);
+  const k=x=>`${x.banco}|${String(x.fecha_tx).slice(0,10)}|${(+x.valor).toFixed(2)}|${x.concepto}`;
+  const M=new Map();(data||[]).filter(x=>x.tipo_op!=='TOTAL'&&x.tipo_op!=='ARCHIVO').forEach(x=>M.set(k(x),(M.get(k(x))||0)+1));
+  extB.forEach(r=>{const c=k(r);if(M.get(c)>0){M.set(c,M.get(c)-1);r._ya=true;r._dest='omitir';r._motivo='Ya importado: esta línea ya está en tu historial y no se vuelve a registrar.'}});
+}
+const importBloqueado=()=>_archivoPrevio?.mismo==='contenido'||(extB.length>0&&extB.every(r=>r._ya));
+function _archivoAviso(){
+  if(importBloqueado())return `<div style="background:var(--red-bg);color:var(--red);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+    <b>Este estado de cuenta ya está importado${_archivoPrevio?.mismo==='contenido'?' (el '+ff(_archivoPrevio.fecha)+')':''}.</b>
+    ${_archivoPrevio?.mismo==='contenido'?'Es el mismo archivo, con el mismo contenido.':'Todas sus líneas ya están en tu historial.'} No se puede importar dos veces.
+    Si necesitas volver a cargarlo, primero borra lo importado con "Borrar historial importado".</div>`;
+  if(_archivoPrevio?.mismo==='nombre')return `<div style="background:var(--amber-bg);color:var(--amber);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+    <b>Ya importaste un archivo con este nombre</b> el ${ff(_archivoPrevio.fecha)}, pero su contenido es distinto. Las líneas que ya estaban quedan bloqueadas; solo se importan las nuevas.</div>`;
+  const n=extB.filter(r=>r._ya).length;
+  return n?`<div style="background:var(--amber-bg);color:var(--amber);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px"><b>${n} línea${n>1?'s ya estaban importadas':' ya estaba importada'}</b> y queda${n>1?'n':''} bloqueada${n>1?'s':''}.</div>`:'';
+}
 async function procExt(e){
   const file=e.target.files[0];if(!file)return;
-  extB=[];_lineasExt=[];_ocr=false;_ocrImgs=new Map();_totalManual=null;_lineaTotal=null;_esCuenta=false;_concCuenta=null;_corteCuenta=null;_gastosRecarga=[];toast('Procesando…',3000);
+  extB=[];_lineasExt=[];_ocr=false;_ocrImgs=new Map();_totalManual=null;_lineaTotal=null;_esCuenta=false;_concCuenta=null;_corteCuenta=null;_gastosRecarga=[];_pagosTarjeta=[];toast('Procesando…',3000);
   const ext=file.name.split('.').pop().toLowerCase();
+  _ult4='';_duenio={tipo:'mio',nombre:''};
+  const pRev=revisarArchivo(file), pTer=cargarTerceros();
   if(ext==='pdf') await parsePDF(file);else await parseXLS(file);
+  await Promise.all([pRev,pTer]);
   if(extB.length){
     extB.forEach(r=>{if(r.banco!=='Excel'&&r.fecha_tx){const[,mm,dd]=r.fecha_tx.split('-').map(Number);r._mm=mm;r._dd=dd}});
-    if(_esCuenta){_corte=_corteCuenta||detectarCorte(_lineasExt,extB);await emparejarRecargas();await marcarDuplicados()}
-    else{_corte=detectarCorte(_lineasExt,extB);ajustarAnios()}
+    if(!_esCuenta){_ult4=detUltimos4(_lineasExt);await recordarDuenio()}
+    if(_esCuenta){_corte=_corteCuenta||detectarCorte(_lineasExt,extB);await marcarYaImportados();await emparejarRecargas();await emparejarPagosTarjeta();await cargarReembolsosPendientes();sugerirReembolsos();await marcarDuplicados()}
+    else{_corte=detectarCorte(_lineasExt,extB);ajustarAnios();await marcarYaImportados()}
     await cargarDeudasTarjeta();renderPrev();
   }
   else toast('No se encontraron movimientos en el archivo. Revisa que sea un estado de cuenta compatible o usa la plantilla Excel.',6000);
@@ -1906,6 +1971,45 @@ function parsPI(lineas){
 }
 // ── Cuentas de ahorro y billeteras: cada débito es un gasto y cada crédito un ingreso, en el mes de su fecha ──
 let _esCuenta=false, _concCuenta=null, _corteCuenta=null;
+// Dueño de la tarjeta que se importa: 'mio' o 'tercero' (con su nombre). Se recuerda por los 4 últimos dígitos.
+let _duenio={tipo:'mio',nombre:''}, _ult4='', _terceros=[];
+function detUltimos4(lineas){const m=/(?:[0-9A-Z]{4})?[X\*•]{4,}\s?(\d{4})\b/.exec(lineas.join('\n'));return m?m[1]:''}
+const refTarjeta=()=>_esCuenta?'':(_duenio.tipo==='tercero'?`tercero:${_duenio.nombre}|${_ult4}`:_ult4);
+async function cargarTerceros(){
+  const[a,b]=await Promise.all([
+    SB.from('obligaciones').select('notas').eq('titular_id',U.id).ilike('notas','%[tercero:%'),
+    SB.from('obligaciones').select('notas').eq('titular_id',U.id).ilike('notas','%[reembolso:%')]);
+  const s=new Set();
+  [...(a.data||[]),...(b.data||[])].forEach(o=>{const m=/\[(?:tercero|reembolso):([^\]]+)\]/.exec(o.notas||'');if(m)s.add(m[1].trim())});
+  _terceros=[...s].sort();
+}
+async function recordarDuenio(){
+  _duenio={tipo:'mio',nombre:''};
+  if(!_ult4||!extB[0])return;
+  const{data}=await SB.from('extractos').select('tarjeta_ref').eq('usuario_id',U.id).eq('banco',extB[0].banco).ilike('tarjeta_ref','%'+_ult4)
+    .order('created_at',{ascending:false}).limit(1);
+  const m=/^tercero:([^|]+)\|/.exec(data?.[0]?.tarjeta_ref||'');
+  if(m)_duenio={tipo:'tercero',nombre:m[1]};
+}
+function htmlDuenio(){
+  const t=_duenio.tipo==='tercero';
+  return `<div style="background:var(--cream);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:13px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+    <b>¿De quién es esta tarjeta${_ult4?' (termina en '+_ult4+')':''}?</b>
+    <label style="display:flex;gap:5px;align-items:center;cursor:pointer"><input type="radio" name="duenio" value="mio" ${t?'':'checked'} style="width:auto" onchange="cambiarDuenio()"> Mía</label>
+    <label style="display:flex;gap:5px;align-items:center;cursor:pointer"><input type="radio" name="duenio" value="tercero" ${t?'checked':''} style="width:auto" onchange="cambiarDuenio()"> De otra persona</label>
+    <input id="duenio-nom" list="lista-terceros" placeholder="Nombre, ej: Papá" value="${escH(_duenio.nombre)}" onchange="cambiarDuenio()"
+      style="display:${t?'block':'none'};border:1px solid var(--border);border-radius:6px;padding:4px 8px;font:inherit;background:var(--card);color:var(--text)">
+    <datalist id="lista-terceros">${_terceros.map(x=>`<option value="${escH(x)}">`).join('')}</datalist>
+    ${t?`<div style="flex-basis:100%;color:var(--muted)">Sus consumos <b>no</b> entran a tus gastos. Sus diferidos quedan en Deudas → Administradas, y los pagos que hagas desde tu cuenta quedan como reembolso pendiente${_duenio.nombre?' de '+escH(_duenio.nombre):''}.</div>`:''}
+  </div>`;
+}
+async function cambiarDuenio(){
+  const t=document.querySelector('input[name=duenio]:checked')?.value==='tercero';
+  const nom=(document.getElementById('duenio-nom')?.value||'').trim().replace(/[\[\]|]/g,'');
+  _duenio={tipo:t?'tercero':'mio',nombre:t?nom:''};
+  await cargarDeudasTarjeta();renderPrev();
+  if(t&&!nom)setTimeout(()=>document.getElementById('duenio-nom')?.focus(),30);
+}
 const MES_AH={ENE:1,FEB:2,MAR:3,ABR:4,MAY:5,JUN:6,JUL:7,AGO:8,SEP:9,SET:9,OCT:10,NOV:11,DIC:12};
 const numCta=s=>parseFloat(String(s).replace(/[$,\s]/g,''));
 const pad2=n=>String(n).padStart(2,'0');
@@ -2034,6 +2138,153 @@ async function emparejarRecargas(){
       b.r._motivo=`Recarga a Deuna del ${ff(a.fecha)}: el gasto real ya está registrado desde Deuna.`});
   }
 }
+// ── Pagos de tarjeta desde la cuenta ──
+// El débito que paga una tarjeta no es gasto (sus consumos ya entran con el estado de la tarjeta), pero sí paga las
+// cuotas de diferidos que venían en ese estado. Se busca el estado de la tarjeta con corte anterior al pago (hasta
+// 45 días antes): por el nombre (VISA BP = tarjeta Pichincha) o, si el débito no lo dice, por el total a pagar.
+// Los cortes salen del total guardado al importar la tarjeta o, si es un estado antiguo, de sus cuotas de diferidos.
+let _pagosTarjeta=[];
+async function emparejarPagosTarjeta(){
+  _pagosTarjeta=[];
+  const pagos=extB.filter(r=>r.tipo_op==='DEB'&&!r._ya&&/VISA BP|BPPCA|PAGO TARJETA/i.test(r._detalle||'')&&!/^\*\*COM|COMISION|^IVA/i.test(r._detalle||''));
+  if(!pagos.length)return;
+  const desde=masDias(pagos.map(r=>r.fecha_tx).sort()[0],-60);
+  const[tot,dif]=await Promise.all([
+    SB.from('extractos').select('banco,fecha_tx,valor,tarjeta_ref').eq('usuario_id',U.id).eq('tipo_op','TOTAL').gte('fecha_tx',desde),
+    SB.from('gastos').select('banco_origen,fecha,concepto').eq('usuario_id',U.id).eq('fuente','importado').gte('fecha',desde)]);
+  if(tot.error||dif.error)return console.error(tot.error||dif.error);
+  const est=new Map();
+  (tot.data||[]).forEach(t=>{const c=String(t.fecha_tx).slice(0,10),du=(/^tercero:([^|]+)/.exec(t.tarjeta_ref||'')||[])[1]||'';
+    est.set(t.banco+'|'+c+'|'+du,{banco:t.banco,corte:c,total:+t.valor,duenio:du})});
+  (dif.data||[]).filter(g=>TARJETA[g.banco_origen]&&/\(\d+\/\d+\)\s*$/.test(g.concepto||'')).forEach(g=>{
+    const c=String(g.fecha).slice(0,10),k=g.banco_origen+'|'+c+'|';if(!est.has(k))est.set(k,{banco:g.banco_origen,corte:c,total:null,duenio:''})});
+  const lista=[...est.values()];
+  const nombres=[...new Set(lista.map(e=>TARJETA[e.banco]).filter(Boolean))];
+  let obls=[];
+  if(nombres.length){
+    const{data,error}=await SB.from('obligaciones').select('id,nombre,deudor_nombre,notas,cuotas(*)').eq('titular_id',U.id).eq('estado','activa').in('deudor_nombre',nombres);
+    if(error)return console.error(error);obls=data||[];
+  }
+  const usados=new Set();
+  pagos.slice().sort((a,b)=>a.fecha_tx<b.fecha_tx?-1:1).forEach(r=>{
+    const tarjeta=/VISA BP/i.test(r._detalle)?'Pichincha':null;
+    // Primero un estado cuyo total sea igual al pago (tuyo o de otra persona); si el débito dice la tarjeta (VISA BP),
+    // y ningún total coincide, el último estado tuyo de esa tarjeta.
+    const cand=lista.filter(x=>{const d=diasEntre(x.corte,r.fecha_tx);return d>0&&d<=45&&!usados.has(x.banco+'|'+x.corte+'|'+x.duenio)&&(!tarjeta||x.banco===tarjeta)})
+      .sort((a,b)=>a.corte<b.corte?1:-1);
+    const e=cand.find(x=>x.total!=null&&Math.abs(x.total-r.valor)<0.01)||(tarjeta?cand.find(x=>!x.duenio):null);
+    if(!e){r._motivo='Pago de una tarjeta cuyo estado de cuenta no está en la app (por ejemplo, la de otra persona). No cuenta como gasto; márcalo si quieres registrarlo.';return}
+    usados.add(e.banco+'|'+e.corte+'|'+e.duenio);
+    const mesCorte=e.corte.slice(0,8)+'01'; // las cuotas de diferidos llevan fecha el 1 del mes del corte
+    const cuotas=obls.filter(o=>o.deudor_nombre===TARJETA[e.banco]&&terceroDe(o)===e.duenio).flatMap(o=>(o.cuotas||[])
+      .filter(c=>c.estado!=='pagado'&&c.fecha_prog&&String(c.fecha_prog).slice(0,10)<=mesCorte).map(c=>({...c,_obl:o.nombre})));
+    const[ya,mo]=e.corte.split('-').map(Number), mes=`${mesN(mo)} ${ya}`;
+    _pagosTarjeta.push({r,est:e,cuotas,mes,duenio:e.duenio});
+    r._motivo=`Pago del estado de ${TARJETA[e.banco]}${e.duenio?' de '+e.duenio:''} de ${mes}`+
+      (e.total!=null?(Math.abs(e.total-r.valor)<0.01?' (igual al total a pagar ✓)':` (el total a pagar era ${fmt(e.total)})`):'')+
+      (cuotas.length?`. Al importar se ${cuotas.length>1?'marcan pagadas':'marca pagada'} ${cuotas.length} cuota${cuotas.length>1?'s':''} de diferidos de ese estado.`:'. No hay cuotas de diferidos pendientes de ese estado.')+
+      (e.duenio?` No es gasto tuyo: queda como reembolso pendiente de ${e.duenio}.`:'');
+  });
+}
+function htmlPagosTarjeta(){
+  const con=_pagosTarjeta.filter(p=>p.cuotas.length);if(!con.length)return htmlReembolsos();
+  const pc=document.getElementById('pagar-cuotas'), on=pc?pc.checked:true;
+  return `<div style="background:var(--blue-bg);color:var(--blue);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+    <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="pagar-cuotas" ${on?'checked':''} style="width:auto;margin-top:3px">
+    <span><b>Pagos de tarjeta encontrados:</b> al importar se marcan pagadas las cuotas de diferidos de estos estados.
+    <ul style="margin:6px 0 0 18px">${con.map(p=>`<li>${escH(TARJETA[p.est.banco])}${p.duenio?' de '+escH(p.duenio):''} · estado de ${p.mes} · pagado el ${ff(p.r.fecha_tx)} (${fmt(p.r.valor)}): ${p.cuotas.length} cuota${p.cuotas.length>1?'s':''} por ${fmt(r2(p.cuotas.reduce((s,c)=>s+(+c.valor_esperado||0)-(+c.valor_pagado||0),0)))}</li>`).join('')}</ul></span></label></div>`+htmlReembolsos();
+}
+// ── Reembolsos de terceros ──
+// Lo que pagas por otra persona (sus tarjetas) queda como "me deben" en "Reembolsos de {nombre}"; cuando te
+// devuelve el dinero, ese depósito no es ingreso: abona a esa deuda. Si te lo da antes, queda como anticipo.
+let _reembPend=[];
+async function cargarReembolsosPendientes(){
+  _reembPend=[];
+  const{data}=await SB.from('obligaciones').select('notas,cuotas(valor_esperado,valor_pagado,estado,fecha_prog)').eq('titular_id',U.id).ilike('notas','%[reembolso:%');
+  (data||[]).forEach(o=>{const n=(/\[reembolso:([^\]]+)\]/.exec(o.notas||'')||[])[1];if(!n)return;
+    (o.cuotas||[]).forEach(c=>{const f=r2((+c.valor_esperado||0)-(+c.valor_pagado||0));if(f>0)_reembPend.push({nombre:n,valor:f,fecha:String(c.fecha_prog||'').slice(0,10)})})});
+}
+// Sugiere "Reembolso de X" en los créditos del mismo valor que un pago hecho por X (en este archivo o pendiente)
+function sugerirReembolsos(){
+  if(!_terceros.length&&!_pagosTarjeta.some(p=>p.duenio))return;
+  const pend=[..._reembPend.map(x=>({...x})),..._pagosTarjeta.filter(p=>p.duenio).map(p=>({nombre:p.duenio,valor:p.r.valor,fecha:p.r.fecha_tx}))];
+  extB.forEach(r=>{
+    if(r.tipo_op!=='CRE'||r._ya||r._dest==='omitir')return;
+    const i=pend.findIndex(x=>Math.abs(x.valor-r.valor)<0.01&&(!x.fecha||Math.abs(diasEntre(x.fecha,r.fecha_tx))<=20));
+    if(i<0)return;
+    const x=pend.splice(i,1)[0];r._reemb=x.nombre;r._dest='omitir';
+    r._motivo=`Parece el reembolso de ${x.nombre} por un pago que hiciste por él/ella: no cuenta como ingreso. Cámbialo si no lo es.`;
+  });
+}
+const terceroOpciones=()=>[...new Set([..._terceros,..._pagosTarjeta.map(p=>p.duenio).filter(Boolean)])];
+// Selector por fila: créditos → "Reembolso de X"; pagos de tarjeta sin estado → "Pago por X (te lo devuelve)"
+function htmlDestinoFila(r,i){
+  const ts=terceroOpciones();if(!_esCuenta||!ts.length||r._ya)return '';
+  const esPagoSinEstado=r.tipo_op==='DEB'&&/VISA BP|BPPCA|PAGO TARJETA/i.test(r._detalle||'')&&!_pagosTarjeta.some(p=>p.r===r)&&!/^\*\*COM|COMISION|^IVA/i.test(r._detalle||'');
+  if(r.tipo_op==='CRE')return `<select id="dst${i}" onchange="cambiarDestino(${i})" style="margin-top:4px;font-size:12px;border:1px solid var(--border);border-radius:6px;padding:2px 6px;background:var(--card);color:var(--text)">
+    <option value="">Ingreso mío</option>${ts.map(t=>`<option value="reembolso:${escH(t)}" ${r._reemb===t?'selected':''}>Reembolso de ${escH(t)}</option>`).join('')}</select>`;
+  if(esPagoSinEstado)return `<select id="dst${i}" onchange="cambiarDestino(${i})" style="margin-top:4px;font-size:12px;border:1px solid var(--border);border-radius:6px;padding:2px 6px;background:var(--card);color:var(--text)">
+    <option value="">Sin asignar</option>${ts.map(t=>`<option value="pago:${escH(t)}">Pago por ${escH(t)} (te lo devuelve)</option>`).join('')}</select>`;
+  return '';
+}
+function cambiarDestino(i){
+  const s=document.getElementById('dst'+i), ck=document.getElementById('ck'+i);
+  if(s&&s.value&&ck)ck.checked=false;
+  else if(s&&!s.value&&ck&&extB[i].tipo_op==='CRE')ck.checked=true;
+  const c=document.getElementById('cuadre-ext');if(c)c.innerHTML=htmlCuadre();
+}
+const destinosFila=()=>extB.map((r,i)=>({r,v:document.getElementById('dst'+i)?.value||(r._reemb&&!document.getElementById('dst'+i)?'reembolso:'+r._reemb:'')})).filter(x=>x.v);
+function htmlReembolsos(){
+  const d=destinosFila(), re=d.filter(x=>x.v.startsWith('reembolso:')), pa=d.filter(x=>x.v.startsWith('pago:')), pt=_pagosTarjeta.filter(p=>p.duenio);
+  if(!re.length&&!pa.length&&!pt.length)return '';
+  const t=a=>fmt(r2(a.reduce((s,x)=>s+(x.r?x.r.valor:0),0)));
+  return `<div style="background:var(--blue-bg);color:var(--blue);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px"><b>Pagos por otras personas:</b>
+    ${pt.length+pa.length?`${pt.length+pa.length} pago${pt.length+pa.length>1?'s':''} (${t([...pt,...pa])}) quedan como reembolso pendiente.`:''}
+    ${re.length?`${re.length} depósito${re.length>1?'s':''} (${t(re)}) se registran como reembolso, no como ingreso.`:''}</div>`;
+}
+const extrasCuenta=()=>_esCuenta&&(destinosFila().length>0||_pagosTarjeta.length>0||_gastosRecarga.length>0);
+async function obligReembolso(nombre){
+  const{data,error}=await SB.from('obligaciones').select('*,cuotas(*)').eq('titular_id',U.id).ilike('notas',`%[reembolso:${nombre}]%`).limit(1);
+  if(error)throw error;
+  if(data?.[0]){if(data[0].estado!=='activa')await SB.from('obligaciones').update({estado:'activa'}).eq('id',data[0].id);return data[0]}
+  const{data:o,error:e2}=await SB.from('obligaciones').insert({titular_id:U.id,deudor_id:U.id,nombre:`Reembolsos de ${nombre}`,descripcion:'Préstamos Personales',
+    segmento:'Préstamos Personales',deudor_nombre:nombre,monto_total:0,fecha_inicio:hoy(),estado:'activa',es_deuda_propia:false,
+    notas:`Lo que pagas por ${nombre} (sus tarjetas o cuentas) y lo que te devuelve.\n[reembolso:${nombre}]`}).select().single();
+  if(e2)throw e2;return{...o,cuotas:[]};
+}
+// Un pago hecho por otra persona: suma a lo que te debe (si te dio un anticipo, lo usa primero)
+async function porReembolsar(nombre,valor,fecha,concepto){
+  const o=await obligReembolso(nombre), cs=o.cuotas||[];
+  let usar=0;
+  for(const a of cs.filter(c=>!(+c.valor_esperado>0)&&+c.valor_pagado>0)){
+    if(usar>=valor-0.004)break;
+    const t=r2(Math.min(+a.valor_pagado,valor-usar));usar=r2(usar+t);
+    const quedan=r2(+a.valor_pagado-t);
+    const{error}=quedan>0.004?await SB.from('cuotas').update({valor_pagado:quedan}).eq('id',a.id):await SB.from('cuotas').delete().eq('id',a.id);
+    if(error)throw error;
+  }
+  const n=cs.reduce((m,c)=>Math.max(m,+c.numero||0),0)+1;
+  const{error}=await SB.from('cuotas').insert({obligacion_id:o.id,numero:n,concepto,fecha_prog:fecha,valor_esperado:valor,valor_pagado:usar,
+    estado:usar>=valor-0.004?'pagado':'pendiente',fecha_pago:usar>0?fecha:null,nota:usar>0?`Cubierto con anticipo: ${fmt(usar)}`:''});
+  if(error)throw error;
+  const{error:e2}=await SB.from('obligaciones').update({monto_total:r2(+o.monto_total+valor)}).eq('id',o.id);if(e2)throw e2;
+}
+// Un depósito de esa persona: abona a lo pendiente; lo que sobra queda como anticipo
+async function aplicarReembolso(nombre,valor,fecha,concepto){
+  const o=await obligReembolso(nombre);
+  let resto=r2(valor);
+  for(const c of (o.cuotas||[]).filter(c=>c.estado!=='pagado').sort((a,b)=>(+a.numero||0)-(+b.numero||0))){
+    if(resto<=0.004)break;
+    const x=r2(Math.min(resto,(+c.valor_esperado||0)-(+c.valor_pagado||0)));if(x<=0)continue;
+    const{error}=await aplicarPagoCuota(c,x,fecha,'Reembolso: '+concepto);if(error)throw error;resto=r2(resto-x);
+  }
+  if(resto>0.004){
+    const n=(o.cuotas||[]).reduce((m,c)=>Math.max(m,+c.numero||0),0)+1;
+    const{error}=await SB.from('cuotas').insert({obligacion_id:o.id,numero:n,concepto:`Anticipo de ${nombre}`,fecha_prog:fecha,fecha_pago:fecha,
+      valor_esperado:0,valor_pagado:resto,estado:'pagado',nota:'Dinero recibido antes del pago; se usa en el próximo pago que hagas por esta persona.'});
+    if(error)throw error;
+  }
+}
 const natImp=cat=>cat==='Ahorro'?'Ahorros':(typeof NAT_CAT!=='undefined'&&NAT_CAT[cat])||'Necesidades';
 function parsGen(lineas,banco){
   const re=/(\d{1,3}(?:[,\.]\d{3})*[,\.]\d{2})/g;
@@ -2132,7 +2383,8 @@ async function cargarDeudasTarjeta(){
     .select('id,nombre,notas,num_cuotas,deudor_nombre,cuotas(id,numero,estado,valor_esperado,valor_pagado)')
     .eq('titular_id',U.id).eq('es_deuda_propia',true).eq('estado','activa').order('nombre');
   if(error)console.error(error);
-  _oblsLD=data||[];
+  // Solo las deudas del mismo dueño: las tuyas o las de esa persona
+  _oblsLD=(data||[]).filter(o=>_duenio.tipo==='tercero'?terceroDe(o)===_duenio.nombre:!esTercero(o));
 }
 // Agrupa las líneas iguales (mismo banco, concepto, cuota y valor): se cobran juntas cada mes.
 function agruparDiferidos(rows){
@@ -2187,7 +2439,7 @@ async function aplicarDiferido(d,accion){
       titular_id:uid,deudor_id:uid,nombre:d.base,descripcion:'Avances / Tarjetas',segmento:'Avances / Tarjetas',
       deudor_nombre:TARJETA[d.banco]||d.banco,monto_total:r2(d.valor*(d.n-1)+d.pendiente),valor_cuota:d.valor,num_cuotas:d.N,
       fecha_inicio:fechaCuotaDif(d,1),estado:'activa',es_deuda_propia:true,
-      notas:`Diferido importado del estado de cuenta (${d.banco}).\n${d.marca}`
+      notas:`Diferido importado del estado de cuenta (${d.banco}).\n${d.marca}${_duenio.tipo==='tercero'&&_duenio.nombre?'\n[tercero:'+_duenio.nombre+']':''}`
     }).select().single();
     if(error){console.error(error);return 'error'}
     const rows=[];
@@ -2241,7 +2493,7 @@ function htmlCuadreCuenta(){
     <b>${ok?'Cuadra con el banco ✓':'No cuadra con el banco'}:</b> leí ${cnt('DEB')} débitos por ${fmt(sD)} y ${cnt('CRE')} créditos por ${fmt(sC)}${c.deb?` (el estado dice ${c.deb.n} por ${fmt(c.deb.v)} y ${c.cre?c.cre.n+' por '+fmt(c.cre.v):'—'})`:''}.</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px">
     <span class="badge t-DEB">${g.length} gastos · ${tot(g)}</span><span class="badge t-CRE">${n.length} ingresos · ${tot(n)}</span><span class="badge bm">${om.length} sin registrar · ${tot(om)}</span></div>
-  ${htmlRecargas()}`;
+  ${htmlRecargas()}${htmlPagosTarjeta()}`;
 }
 function htmlRecargas(){
   const pich=extB.filter(r=>r._recarga);
@@ -2297,6 +2549,8 @@ function renderPrev(){
     ${_ocr?`<div style="background:var(--amber-bg);color:var(--amber);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:12px">
       <b>Este PDF es una imagen y se leyó con OCR.</b> El OCR puede confundir dígitos (por ejemplo 9 y 5, 3 y 9).
       Compara cada monto con el PDF y corrígelo en su casilla antes de importar.</div>`:''}
+    ${_archivoAviso()}
+    ${_esCuenta?'':htmlDuenio()}
     <div id="cuadre-ext"></div>
     ${_esCuenta?(()=>{const f=extB.map(r=>r.fecha_tx).sort();return `<div style="background:var(--cream);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:13px">
       <b>${escH(extB[0].banco)}</b> · movimientos del ${ff(f[0])} al ${ff(f[f.length-1])}. Cada uno va al mes de su fecha.</div>`})():''}
@@ -2310,7 +2564,7 @@ function renderPrev(){
       <b>Cuenta de ahorros:</b> cada débito se registra como <b>gasto</b> y cada crédito como <b>ingreso</b>, en el mes de su fecha.
       Quedan sin marcar los pagos de tarjeta, las recargas de Deuna y los posibles duplicados; puedes cambiar cualquier casilla.
       Si un crédito no es un ingreso (por ejemplo, alguien te devuelve un préstamo), desmárcalo.</div>`:''}
-    <div style="background:var(--amber-bg);border-radius:9px;padding:12px;font-size:13px;color:var(--amber);margin-bottom:12px;${_esCuenta?'display:none':''}">
+    <div style="background:var(--amber-bg);border-radius:9px;padding:12px;font-size:13px;color:var(--amber);margin-bottom:12px;${_esCuenta||_duenio.tipo==='tercero'?'display:none':''}">
       <b>¿Dónde importar?</b>
       <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
         <label style="cursor:pointer;display:flex;align-items:center;gap:5px"><input type="radio" name="dest" value="gastos" checked style="width:auto"> Gastos del mes</label>
@@ -2319,17 +2573,17 @@ function renderPrev(){
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
-      <button class="btn bgh sm" onclick="extB.forEach((_,i)=>{const c=document.getElementById('ck'+i);if(c)c.checked=true})">✓ Todos</button>
+      <button class="btn bgh sm" onclick="extB.forEach((_,i)=>{const c=document.getElementById('ck'+i);if(c&&!c.disabled)c.checked=true})">✓ Todos</button>
       <button class="btn bgh sm" onclick="extB.forEach((_,i)=>{const c=document.getElementById('ck'+i);if(c)c.checked=false})">✗ Ninguno</button>
-      <button class="btn bgo" style="margin-left:auto" id="btn-imp-ext" onclick="impExt()">Importar →</button>
+      <button class="btn bgo" style="margin-left:auto" id="btn-imp-ext" onclick="impExt()" ${importBloqueado()?'disabled title="Ya importado"':''}>Importar →</button>
     </div>
     <div style="max-height:620px;overflow-y:auto">
     <table><tr><th style="width:32px"></th><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="num">Valor</th><th>Categoría</th></tr>
     ${extB.map((r,i)=>`<tr>
-      <td><input type="checkbox" id="ck${i}" ${r._dest==='omitir'?'':'checked'} aria-label="Importar ${r.concepto.replace(/"/g,'')}"></td>
+      <td><input type="checkbox" id="ck${i}" ${r._dest==='omitir'?'':'checked'} ${r._ya?'disabled':''} aria-label="Importar ${r.concepto.replace(/"/g,'')}"></td>
       <td style="font-size:12px">${r.fecha_tx?ff(r.fecha_tx):'—'}<div style="font-size:10px;color:var(--muted)">va a ${(m=>mesN(m.mes)+' '+m.anio)(mesDeFila(r))}</div></td>
       <td><div style="font-size:13px;font-weight:600">${r.concepto.slice(0,48)}</div><div style="font-size:10px;color:var(--muted)">${r.banco}${r._detalle&&r._detalle!==r.concepto?' · '+r._detalle.slice(0,60):''}</div>
-        ${r._motivo?`<div style="font-size:11px;color:var(--amber);margin-top:2px">${r._motivo}</div>`:''}</td>
+        ${r._motivo?`<div style="font-size:11px;color:var(--amber);margin-top:2px">${r._motivo}</div>`:''}${htmlDestinoFila(r,i)}</td>
       <td><span class="badge t-${(r.tipo_op||'OTRO').replace('/','')}">${r.tipo_op==='DEB'?'Débito':r.tipo_op==='CRE'?'Crédito':r.tipo_op||'—'}</span></td>
       <td class="num ${r.tipo_op==='PAGO'||r.tipo_op==='CRE'?'pos':'neg'}">${_ocr
         ?`<input id="val${i}" value="${r.valor.toFixed(2)}" inputmode="decimal" onchange="editarMonto(${i},this.value)" aria-label="Monto de ${r.concepto.replace(/"/g,'')}" style="width:90px;text-align:right;font:inherit;border:1px solid var(--amber);border-radius:6px;padding:3px 6px;background:var(--amber-bg)">`
@@ -2347,21 +2601,29 @@ function renderPrev(){
 async function impExt(){
   const dest=document.querySelector('input[name=dest]:checked')?.value||'gastos';
   const uid=U.id;
-  const sel=extB.map((r,i)=>{const ck=document.getElementById('ck'+i),cat=document.getElementById('cat'+i);if(!ck?.checked)return null;
+  if(importBloqueado())return toast('Este estado de cuenta ya está importado. No se puede importar dos veces.',5000);
+  if(!_esCuenta&&_duenio.tipo==='tercero'&&!_duenio.nombre){document.getElementById('duenio-nom')?.focus();return toast('Escribe de quién es la tarjeta.')}
+  const sel=extB.map((r,i)=>{const ck=document.getElementById('ck'+i),cat=document.getElementById('cat'+i);if(!ck?.checked||r._ya)return null;
     const base=Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_')));
-    return{...base,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:_corte.mes,anio_periodo:_corte.anio}}).filter(Boolean);
-  if(!sel.length&&!_difs.length)return toast('Marca al menos un movimiento para importar.');
+    return{...base,usuario_id:uid,estado:'registrado',categoria:cat?cat.value:r.categoria,mes_periodo:_corte.mes,anio_periodo:_corte.anio,tarjeta_ref:refTarjeta()}}).filter(Boolean);
+  if(!sel.length&&!_difs.length&&!extrasCuenta())return toast('Marca al menos un movimiento para importar.');
   const btnImp=document.getElementById('btn-imp-ext');if(btnImp){btnImp.disabled=true;btnImp.textContent='Importando…'}
   // Leer las acciones elegidas antes de tocar la base
   const acciones=_difs.map((d,i)=>document.getElementById('dif-acc-'+i)?.value||'omitir');
-  const descart=_esCuenta?extB.map((r,i)=>{if(document.getElementById('ck'+i)?.checked)return null;
+  const descart=_esCuenta?extB.map((r,i)=>{if(document.getElementById('ck'+i)?.checked||r._ya)return null;
     const base=Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_')));
     return{...base,usuario_id:uid,estado:'descartado',mes_periodo:_corte.mes,anio_periodo:_corte.anio}}).filter(Boolean):[];
   if(sel.length||descart.length){
     const{error:eExt}=await SB.from('extractos').insert([...sel,...descart]);
     if(eExt){if(btnImp){btnImp.disabled=false;btnImp.textContent='Importar →'}return toast(errTxt('importar los movimientos',eExt),5000)}
   }
-  let nG=0,nI=0,nQ=0;
+  // Tarjetas: se guarda el total a pagar y la fecha de corte para reconocer después el pago desde la cuenta
+  if(!_esCuenta&&extB[0]&&_corte){const tb=totalBanco();
+    if(tb!=null){const{error:eT}=await SB.from('extractos').insert({usuario_id:uid,banco:extB[0].banco,concepto:'Total a pagar del estado',tipo_op:'TOTAL',
+      valor:r2(tb),fecha_tx:fechaCorteISO(),tarjeta_ref:refTarjeta(),categoria:'Pago',estado:'descartado',mes_periodo:_corte.mes,anio_periodo:_corte.anio});if(eT)console.error(eT)}}
+  if(_archivo){const{error:eA}=await SB.from('extractos').insert({usuario_id:uid,banco:extB[0]?.banco||'Archivo',concepto:_archivo.nombre,tipo_op:'ARCHIVO',
+    valor:0,fecha_tx:hoy(),tarjeta_ref:_archivo.hash,categoria:'',estado:'descartado',mes_periodo:_corte?.mes||null,anio_periodo:_corte?.anio||null});if(eA)console.error(eA)}
+  let nG=0,nI=0,nQ=0,nC=0,nR=0,nA=0;
   if(_esCuenta){
     const g=sel.filter(r=>r.tipo_op==='DEB').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,fecha:m.fecha,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:natImp(r.categoria),tipo:'variable',fuente:'importado',banco_origen:r.banco}});
     const ing=sel.filter(r=>r.tipo_op==='CRE').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,concepto:r.concepto,valor:r.valor,fecha:m.fecha}});
@@ -2371,12 +2633,28 @@ async function impExt(){
       try{await borrarEnLotes('gastos',_gastosRecarga.map(x=>x.id));nQ=_gastosRecarga.length}
       catch(e){toast(errTxt('quitar de tus gastos los débitos que eran recargas',e),6000)}
     }
+    if(_pagosTarjeta.length&&document.getElementById('pagar-cuotas')?.checked!==false){
+      pagar:for(const p of _pagosTarjeta)for(const c of p.cuotas){
+        const pend=r2((+c.valor_esperado||0)-(+c.valor_pagado||0));if(pend<=0)continue;
+        const{error}=await aplicarPagoCuota(c,pend,p.r.fecha_tx,`Pagada con el estado de ${p.mes} (débito ${p.r.banco} del ${ff(p.r.fecha_tx)})`);
+        if(error){toast(errTxt('marcar como pagadas las cuotas de la tarjeta',error),6000);break pagar}
+        nC++;
+      }
+    }
+    try{
+      for(const p of _pagosTarjeta.filter(p=>p.duenio)){await porReembolsar(p.duenio,p.r.valor,p.r.fecha_tx,`Pago tarjeta ${TARJETA[p.est.banco]} (estado de ${p.mes})`);nR++}
+      for(const{r,v}of destinosFila()){
+        const[tipo,nom]=[v.slice(0,v.indexOf(':')),v.slice(v.indexOf(':')+1)];
+        if(tipo==='pago'){await porReembolsar(nom,r.valor,r.fecha_tx,`Pago por ${nom}: ${r.concepto}`);nR++}
+        else if(tipo==='reembolso'){await aplicarReembolso(nom,r.valor,r.fecha_tx,r.concepto);nA++}
+      }
+    }catch(e){toast(errTxt('registrar los pagos por otras personas',e),6000)}
   }
-  else if(dest==='gastos'){const g=sel.filter(r=>r.tipo_op!=='PAGO'&&r.tipo_op!=='ND').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,fecha:m.fecha,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:natImp(r.categoria),tipo:'variable',fuente:'importado',banco_origen:r.banco}});if(g.length)await SB.from('gastos').insert(g)}
-  else if(dest==='ingresos'){const g=sel.filter(r=>r.tipo_op==='PAGO').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,concepto:r.concepto,valor:r.valor,fecha:m.fecha}});if(g.length)await SB.from('ingresos').insert(g)}
+  else if(dest==='gastos'&&_duenio.tipo!=='tercero'){const g=sel.filter(r=>r.tipo_op!=='PAGO'&&r.tipo_op!=='ND').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,fecha:m.fecha,concepto:r.concepto,valor:r.valor,categoria:r.categoria,naturaleza:natImp(r.categoria),tipo:'variable',fuente:'importado',banco_origen:r.banco}});if(g.length)await SB.from('gastos').insert(g)}
+  else if(dest==='ingresos'&&_duenio.tipo!=='tercero'){const g=sel.filter(r=>r.tipo_op==='PAGO').map(r=>{const m=mesDeFila(r);return{usuario_id:uid,anio:m.anio,mes:m.mes,concepto:r.concepto,valor:r.valor,fecha:m.fecha}});if(g.length)await SB.from('ingresos').insert(g)}
   const res={creada:0,actualizada:0,omitida:0,error:0};
   for(let i=0;i<_difs.length;i++)res[await aplicarDiferido(_difs[i],acciones[i])]++;
-  let msg=_esCuenta?`${nG} gastos y ${nI} ingresos registrados (${extB[0]?.banco||'cuenta'})${nQ?` · ${nQ} recarga${nQ>1?'s':''} de Pichincha quitada${nQ>1?'s':''} de gastos`:''}`:`${sel.length} movimientos importados (estado de ${mesN(_corte.mes)} ${_corte.anio})`;
+  let msg=_esCuenta?`${nG} gastos y ${nI} ingresos registrados (${extB[0]?.banco||'cuenta'})${nQ?` · ${nQ} recarga${nQ>1?'s':''} de Pichincha quitada${nQ>1?'s':''} de gastos`:''}${nC?` · ${nC} cuota${nC>1?'s':''} de diferidos pagada${nC>1?'s':''}`:''}${nR?` · ${nR} pago${nR>1?'s':''} por otras personas`:''}${nA?` · ${nA} reembolso${nA>1?'s':''}`:''}`:`${sel.length} movimientos importados (estado de ${mesN(_corte.mes)} ${_corte.anio}${_duenio.tipo==='tercero'?', tarjeta de '+_duenio.nombre:''})`;
   if(res.creada)msg+=` · ${res.creada} deuda${res.creada>1?'s':''} creada${res.creada>1?'s':''}`;
   if(res.actualizada)msg+=` · ${res.actualizada} actualizada${res.actualizada>1?'s':''}`;
   if(res.error)msg+=` · ${res.error} diferido${res.error>1?'s':''} no se pudo registrar`;
@@ -2529,7 +2807,7 @@ async function mRegistrar(tipo,persona){
   // Cuotas pendientes y metas, para "Pago de deuda" y "Aporte a meta"
   const uid=U.id, yo=_reg;
   const[{data:obls},{data:metas}]=await Promise.all([
-    SB.from('obligaciones').select('id,nombre,deudor_nombre,titular_id,deudor_id,es_deuda_propia,cuotas(*)').eq('titular_id',uid).eq('estado','activa'),
+    SB.from('obligaciones').select('id,nombre,deudor_nombre,titular_id,deudor_id,es_deuda_propia,notas,cuotas(*)').eq('titular_id',uid).eq('estado','activa'),
     SB.from('ahorros').select('id,nombre,acumulado,objetivo').eq('usuario_id',uid).eq('activo',true).order('created_at')
   ]);
   if(yo!==_reg)return; // se abrió otro registro mientras cargaba
@@ -2562,7 +2840,7 @@ function tipoReg(k){
   }else if(k==='pago'){
     if(!_reg.cuotas.length){cont.innerHTML='<div class="empty" style="padding:16px"><p>No tienes cuotas pendientes en tus deudas activas.</p></div>';return}
     const sel=_reg.persona?Math.max(_reg.cuotas.findIndex(x=>norm(x.o.deudor_nombre)===norm(_reg.persona)),0):0;
-    cont.innerHTML=`<div class="ff"><label for="rg-cuota">Aplicar a</label><select id="rg-cuota" onchange="cuotaReg()">${_reg.cuotas.map((x,i)=>`<option value="${i}" ${i===sel?'selected':''}>${x.cobro?'Cobro':'Pago'} · ${escH(x.o.deudor_nombre||'—')} · ${escH(x.o.nombre)} · ${escH(x.c.concepto||'Cuota')} — pendiente ${fmt(x.pend)}</option>`).join('')}</select>
+    cont.innerHTML=`<div class="ff"><label for="rg-cuota">Aplicar a</label><select id="rg-cuota" onchange="cuotaReg()">${_reg.cuotas.map((x,i)=>`<option value="${i}" ${i===sel?'selected':''}>${esTercero(x.o)?'De '+escH(terceroDe(x.o))+' · ':''}${x.cobro?'Cobro':'Pago'} · ${escH(x.o.deudor_nombre||'—')} · ${escH(x.o.nombre)} · ${escH(x.c.concepto||'Cuota')} — pendiente ${fmt(x.pend)}</option>`).join('')}</select>
       <div class="hint" id="rg-cuota-h"></div></div>
     <details class="mas"><summary>Más detalles</summary>${campoFecha(hoy())}
       <div class="ff"><label for="rg-nota">Nota (referencia, transferencia…)</label><input id="rg-nota" placeholder="Opcional"></div></details>`;
@@ -2638,14 +2916,14 @@ async function cargarIndice(){
   if(_idx&&Date.now()-_idxT<60000)return _idx;
   const uid=U.id;
   const[{data:obls},{data:gas},{data:ing},{data:ah},{data:lib}]=await Promise.all([
-    SB.from('obligaciones').select('id,nombre,deudor_nombre,estado,es_deuda_propia,titular_id,deudor_id,monto_total,segmento,cuotas(valor_pagado)').or(`titular_id.eq.${uid},deudor_id.eq.${uid}`),
+    SB.from('obligaciones').select('id,nombre,deudor_nombre,estado,es_deuda_propia,titular_id,deudor_id,monto_total,segmento,notas,cuotas(valor_pagado)').or(`titular_id.eq.${uid},deudor_id.eq.${uid}`),
     SB.from('gastos').select('id,concepto,valor,fecha,anio,mes,categoria').eq('usuario_id',uid).order('fecha',{ascending:false}).limit(500),
     SB.from('ingresos').select('id,concepto,valor,fecha,anio,mes').eq('usuario_id',uid).order('fecha',{ascending:false}).limit(300),
     SB.from('ahorros').select('id,nombre,acumulado').eq('usuario_id',uid).eq('activo',true),
     SB.from('libros').select('id,nombre').eq('usuario_id',uid)
   ]);
   const per={};
-  (obls||[]).forEach(o=>{const k=norm(o.deudor_nombre);if(!k)return;per[k]=per[k]||{nombre:o.deudor_nombre.trim(),neto:0};
+  (obls||[]).forEach(o=>{const k=norm(o.deudor_nombre);if(!k||esTercero(o))return;per[k]=per[k]||{nombre:o.deudor_nombre.trim(),neto:0};
     if(o.estado==='activa')per[k].neto+=esMeDeben(o,uid)?saldoObl(o):esLeDebo(o,uid)?-saldoObl(o):0});
   _idx={obls:obls||[],gas:gas||[],ing:ing||[],ah:ah||[],lib:lib||[],per:Object.values(per)};_idxT=Date.now();
   return _idx;
@@ -2686,7 +2964,7 @@ function pintarBuscar(){
       .map(p=>({t:p.nombre,s:p.neto>0.004?'te debe':p.neto<-0.004?'le debes':'al día',k:fmt(Math.abs(p.neto)),fn:()=>{irA('personas');vPersona(p.nombre)}})));
     if(tok.length){
       add('Deudas',ix.obls.filter(o=>ok(`${o.nombre} ${o.deudor_nombre||''} ${o.segmento||''}`)).slice(0,6)
-        .map(o=>({t:o.nombre,s:(esMeDeben(o,U.id)?'Te debe ':'Le debes a ')+(o.deudor_nombre||'—')+(o.estado!=='activa'?' · cerrada':''),k:fmt(saldoObl(o)),fn:()=>vObl(o.id)})));
+        .map(o=>({t:o.nombre,s:(esTercero(o)?'De '+terceroDe(o)+' · debe a ':esMeDeben(o,U.id)?'Te debe ':'Le debes a ')+(o.deudor_nombre||'—')+(o.estado!=='activa'?' · cerrada':''),k:fmt(saldoObl(o)),fn:()=>vObl(o.id)})));
       const mov=[...ix.gas.map(g=>({...g,_t:'Gasto'})),...ix.ing.map(g=>({...g,_t:'Ingreso'}))]
         .filter(g=>ok(`${g.concepto} ${g.categoria||''} ${g._t} ${g.valor}`)).sort((a,b)=>(b.fecha||'')<(a.fecha||'')?-1:1).slice(0,8);
       add('Movimientos',mov.map(g=>({t:g.concepto,s:`${g._t} · ${g.fecha?ff(String(g.fecha).slice(0,10)):mesN(g.mes)+' '+g.anio}${g.categoria?' · '+g.categoria:''}`,
@@ -2721,7 +2999,7 @@ async function cargarObls(){
 // "Jahir", "jahir " y "Jáhir" se agrupan como una sola persona (el nombre es texto libre)
 function agruparPersonas(obls){
   const uid=U.id, g={};
-  obls.forEach(o=>{
+  obls.filter(o=>!esTercero(o)).forEach(o=>{
     const k=norm(o.deudor_nombre)||'(sin nombre)';
     const p=g[k]=g[k]||{clave:k,formas:{},obls:[],meDebe:0,leDebo:0,abiertas:0,ultimo:''};
     const nom=(o.deudor_nombre||'Sin nombre').trim();p.formas[nom]=(p.formas[nom]||0)+1;
